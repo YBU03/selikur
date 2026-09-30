@@ -2,7 +2,7 @@
 import clsx from 'clsx'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { forwardRef, useEffect, useState } from 'react'
+import { forwardRef, useEffect, useState, useTransition } from 'react'
 import { ChevronLeft, Loader2, Minus, Plus, X, Package } from 'lucide-react'
 import { photoUrl } from '@/lib/supabase'
 import type { StockStatus } from '@/lib/forecast'
@@ -104,7 +104,7 @@ export function PageHeader({
 }) {
   const router = useRouter()
   return (
-    <header className="sticky top-0 z-30 -mx-4 mb-4 flex items-center gap-2 bg-ink-50/85 px-4 pt-[max(env(safe-area-inset-top),0.75rem)] pb-3 backdrop-blur-lg lg:-mx-8 lg:mb-6 lg:px-8 lg:pt-6">
+    <header className="sticky top-0 z-30 -mx-4 mb-4 flex items-center gap-2 bg-ink-50/95 px-4 pt-[max(env(safe-area-inset-top),0.75rem)] pb-3 lg:-mx-8 lg:mb-6 lg:px-8 lg:pt-6">
       {back && (
         <IconButton
           aria-label="Kembali"
@@ -308,16 +308,24 @@ export function Segmented<T extends string>({
   options: { value: T; label: React.ReactNode }[]
   className?: string
 }) {
+  // Tombol langsung terlihat aktif; isi halaman yang berat dirender sebagai transisi (tidak memblok tap)
+  const [shown, setShown] = useState(value)
+  const [, startTransition] = useTransition()
+  useEffect(() => setShown(value), [value])
   return (
     <div className={cx('flex rounded-2xl bg-ink-100 p-1', className)}>
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
-          onClick={() => onChange(o.value)}
+          onClick={() => {
+            if (o.value === shown) return
+            setShown(o.value)
+            startTransition(() => onChange(o.value))
+          }}
           className={cx(
-            'flex-1 rounded-xl px-3 py-2 text-sm font-semibold transition',
-            value === o.value ? 'bg-white text-brand-800 shadow-soft' : 'text-ink-500',
+            'flex-1 rounded-xl px-3 py-2 text-sm font-semibold transition-colors duration-150',
+            shown === o.value ? 'bg-white text-brand-800 shadow-soft' : 'text-ink-500',
           )}
         >
           {o.label}
@@ -333,7 +341,7 @@ export function Chip({ active, children, onClick }: { active?: boolean; children
       type="button"
       onClick={onClick}
       className={cx(
-        'shrink-0 rounded-full px-3.5 py-1.5 text-sm font-medium whitespace-nowrap transition',
+        'shrink-0 rounded-full px-3.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors duration-150',
         active ? 'bg-brand-700 text-white' : 'bg-white text-ink-600 ring-1 ring-ink-200',
       )}
     >
@@ -394,7 +402,7 @@ export function Sheet({
   if (!open) return null
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
-      <div className="animate-fade absolute inset-0 bg-ink-900/40 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="animate-fade absolute inset-0 bg-ink-900/45" onClick={onClose} />
       <div className="animate-sheet relative flex max-h-[92dvh] w-full max-w-lg flex-col rounded-t-3xl bg-white shadow-lift sm:rounded-3xl">
         <div className="flex items-center gap-2 px-5 pt-3 pb-2">
           <div className="absolute top-2 left-1/2 h-1 w-10 -translate-x-1/2 rounded-full bg-ink-200 sm:hidden" />

@@ -1,6 +1,6 @@
 'use client'
 import { useRole } from '@/lib/roles'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useDeferredValue } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { subDays } from 'date-fns'
 import { Search, Upload, Pencil, Trash2, Users, Store, FileSpreadsheet } from 'lucide-react'
@@ -90,7 +90,8 @@ function ManualInput({ onDone }: { onDone: () => void }) {
   const { data: products, isPending } = useCatalog()
   const [date, setDate] = useState(isoDate(new Date()))
   const [channel, setChannel] = useState<Channel>('organik')
-  const [q, setQ] = useState('')
+  const [qInput, setQ] = useState('')
+  const q = useDeferredValue(qInput)
   const [qty, setQty] = useState<Record<string, number>>({})
   const [busy, setBusy] = useState(false)
 
@@ -128,7 +129,7 @@ function ManualInput({ onDone }: { onDone: () => void }) {
       </Card>
       <div className="relative mt-3">
         <Search className="pointer-events-none absolute top-1/2 left-4 size-4.5 -translate-y-1/2 text-ink-400" />
-        <Input className="pl-11" placeholder="Cari produk / varian" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Input className="pl-11" placeholder="Cari produk / varian" value={qInput} onChange={(e) => setQ(e.target.value)} />
       </div>
       <div className="mt-3 space-y-3">
         {list.length === 0 && <EmptyState title="Belum ada produk aktif" />}

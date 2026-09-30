@@ -1,5 +1,5 @@
 'use client'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useDeferredValue } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, ShoppingCart, Info, Wand2, Eraser, FileText } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -30,7 +30,8 @@ function BelanjaManual() {
   const { data: buckets } = useSalesBuckets()
   const { data: profile } = useProfile()
   const prof = profile ?? defaultProfile
-  const [q, setQ] = useState('')
+  const [qInput, setQ] = useState('')
+  const q = useDeferredValue(qInput)
   const [sup, setSup] = useState<string>('all')
   const [onlyLow, setOnlyLow] = useState(false)
   const [qty, setQty] = useState<Record<string, number>>({})
@@ -48,6 +49,12 @@ function BelanjaManual() {
         .sort((a, b) => a.name.localeCompare(b.name, 'id')),
     [products, sup, q, onlyLow],
   )
+
+  const weeklyOf = useMemo(() => {
+    const m = new Map<string, number>()
+    buckets?.forEach((b, id) => m.set(id, movingAverage(b, prof.forecast_method)))
+    return m
+  }, [buckets, prof.forecast_method])
 
   const allVariants = useMemo(() => (products ?? []).flatMap((p) => p.variants.map((v) => ({ p, v }))), [products])
   const picked = allVariants.filter(({ v }) => (qty[v.id] ?? 0) > 0)
@@ -87,7 +94,7 @@ function BelanjaManual() {
       <div className="mt-4 flex gap-2">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-4 size-4.5 -translate-y-1/2 text-ink-400" />
-          <Input className="pl-11" placeholder="Cari produk / varian / SKU" value={q} onChange={(e) => setQ(e.target.value)} />
+          <Input className="pl-11" placeholder="Cari produk / varian / SKU" value={qInput} onChange={(e) => setQ(e.target.value)} />
         </div>
       </div>
       <div className="no-scrollbar -mx-4 mt-3 flex gap-2 overflow-x-auto px-4">
@@ -134,7 +141,7 @@ function BelanjaManual() {
             <div className="divide-y divide-ink-100">
               {p.variants.map((v) => {
                 const n = qty[v.id] ?? 0
-                const weekly = movingAverage(buckets?.get(v.id) ?? [], prof.forecast_method)
+                const weekly = weeklyOf.get(v.id) ?? 0
                 const low = v.stock <= v.min_stock
                 return (
                   <div key={v.id} className={cx('flex items-center gap-3 py-2', n > 0 && 'bg-brand-50/50')}>

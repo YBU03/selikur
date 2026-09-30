@@ -18,7 +18,7 @@ function makePersister() {
       setItem: (k, v) => set(k, v, store),
       removeItem: (k) => del(k, store),
     },
-    throttleTime: 1500,
+    throttleTime: 3000,
   })
 }
 
@@ -30,7 +30,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
           queries: {
             networkMode: 'offlineFirst',
             gcTime: 7 * DAY,
-            staleTime: 30 * 1000,
+            staleTime: 2 * 60 * 1000,
             retry: (n, err) => n < 2 && !String((err as Error)?.message).includes('JWT'),
             refetchOnWindowFocus: true,
           },

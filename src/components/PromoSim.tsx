@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { memo, useDeferredValue, useState } from 'react'
 import { Zap, Ticket, Tag, ChevronDown, ShieldCheck, AlertTriangle, Ban, Info } from 'lucide-react'
 import { analyzePromo, promoBreakdown, PROMO_INFO, type PricingCfg, type PromoType, type Recommendation } from '@/lib/pricing'
 import { pct, rupiah } from '@/lib/format'
@@ -38,7 +38,8 @@ export default function PromoSim({
   view: 'kartu' | 'tabel'
   pageSize: number
 }) {
-  const [type, setType] = useState<PromoType>('flash')
+  const [typeUi, setType] = useState<PromoType>('flash')
+  const type = useDeferredValue(typeUi)
   const [base, setBase] = useState<'current' | 'saran'>('current')
   const [limit, setLimit] = useState(pageSize)
   const info = PROMO_INFO[type]
@@ -58,7 +59,7 @@ export default function PromoSim({
         {(Object.keys(PROMO_INFO) as PromoType[]).map((t) => {
           const I = ICON[t]
           return (
-            <Chip key={t} active={type === t} onClick={() => setType(t)}>
+            <Chip key={t} active={typeUi === t} onClick={() => setType(t)}>
               <span className="inline-flex items-center gap-1.5">
                 <I className="size-3.5" /> {PROMO_INFO[t].label}
               </span>
@@ -149,7 +150,9 @@ function Verdict({ a }: { a: Item['a'] }) {
   )
 }
 
-function PromoCard({ r, steps, minMargin, extraFee, typeLabel }: { r: Item; steps: number[]; minMargin: number; extraFee: number; typeLabel: string }) {
+const PromoCard = memo(PromoCardInner)
+
+function PromoCardInner({ r, steps, minMargin, extraFee, typeLabel }: { r: Item; steps: number[]; minMargin: number; extraFee: number; typeLabel: string }) {
   const sug = r.a.suggested ? promoBreakdown(r.cost, r.price, r.a.suggested, r.cfg, extraFee) : null
   const aff = r.cfg.affiliatePct > 0
   return (

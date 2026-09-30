@@ -1,6 +1,6 @@
 'use client'
 import { AdminOnly } from '@/components/AppShell'
-import { useMemo, useState } from 'react'
+import { memo, useMemo, useState, useDeferredValue } from 'react'
 import { Calculator, Settings2, Search, Check, LayoutList, Table2, Sparkles, FileSpreadsheet, ChevronDown, Wand2, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useCatalog, usePricing, useInvalidate, useSalesBuckets, qk } from '@/lib/queries'
@@ -208,7 +208,12 @@ function Diff({ from, to }: { from: number; to: number }) {
   )
 }
 
-function ProductSimCard({ r, onApply, onOpen, channel }: { r: Row; onApply: () => void; onOpen: () => void; channel: Channel }) {
+type SimCardProps = { r: Row; onApply: () => void; onOpen: () => void; channel: Channel }
+
+/** Di-memo: callback hanya menutup `r`, jadi cukup bandingkan `r` & `channel`. */
+const ProductSimCard = memo(ProductSimCardInner, (a, b) => a.r === b.r && a.channel === b.channel)
+
+function ProductSimCardInner({ r, onApply, onOpen, channel }: SimCardProps) {
   const aff = channel === 'affiliate' && r.cfg.affiliatePct > 0
   const sar = breakdown(r.cost, r.rec.price, r.cfg, aff ? 'affiliate' : 'organik')
   return (
@@ -415,8 +420,10 @@ function HargaPageInner() {
   const { data: products, isPending } = useCatalog()
   const { data: buckets } = useSalesBuckets()
   const [view, setView] = useState<'kartu' | 'tabel'>('kartu')
-  const [filter, setFilter] = useState<PriceStatus | 'all' | 'ubah'>('all')
-  const [q, setQ] = useState('')
+  const [filterUi, setFilter] = useState<PriceStatus | 'all' | 'ubah'>('all')
+  const filter = useDeferredValue(filterUi)
+  const [qInput, setQ] = useState('')
+  const q = useDeferredValue(qInput)
   const [limit, setLimit] = useState(() => (typeof window !== 'undefined' && window.innerWidth >= 1024 ? 6 : PAGE))
   const [settings, setSettings] = useState(false)
   const [calc, setCalc] = useState(false)
@@ -557,7 +564,7 @@ function HargaPageInner() {
       <div className="mt-4 flex gap-2">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-4 size-4.5 -translate-y-1/2 text-ink-400" />
-          <Input className="pl-11" placeholder="Cari produk" value={q} onChange={(e) => (setQ(e.target.value), setLimit(page))} />
+          <Input className="pl-11" placeholder="Cari produk" value={qInput} onChange={(e) => (setQ(e.target.value), setLimit(page))} />
         </div>
         <Segmented
           className="w-[7.5rem] shrink-0"
@@ -599,7 +606,7 @@ function HargaPageInner() {
       )}
       <div className="no-scrollbar -mx-4 mt-3 flex gap-2 overflow-x-auto px-4">
         {filterChips.map((c) => (
-          <Chip key={c.v} active={filter === c.v} onClick={() => (setFilter(c.v), setLimit(page))}>
+          <Chip key={c.v} active={filterUi === c.v} onClick={() => (setFilter(c.v), setLimit(page))}>
             {c.label} <span className="opacity-60">{c.n}</span>
           </Chip>
         ))}

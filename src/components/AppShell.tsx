@@ -27,18 +27,39 @@ const tabs = [
   },
 ]
 
-export function BottomNav() {
+const PREFETCH = ['/', '/produk', '/belanja', '/menu', '/forecast', '/penjualan', '/harga', '/jadwal', '/rekap', '/pengaturan', '/tangkap']
+
+/**
+ * Path aktif yang langsung berpindah saat tab diketuk (sebelum halaman baru
+ * selesai dimuat), supaya navigasi terasa instan. Rute utama juga di-prefetch
+ * saat browser senggang.
+ */
+function useNavPath() {
   const path = usePathname()
+  const router = useRouter()
+  const [pending, setPending] = useState<string | null>(null)
+  useEffect(() => setPending(null), [path])
+  useEffect(() => {
+    const run = () => PREFETCH.forEach((h) => router.prefetch(h))
+    const w = window as Window & { requestIdleCallback?: (cb: () => void) => number }
+    if (w.requestIdleCallback) w.requestIdleCallback(run)
+    else setTimeout(run, 1200)
+  }, [router])
+  return { path: pending ?? path, go: (href: string) => href !== path && setPending(href) }
+}
+
+export function BottomNav() {
+  const { path, go } = useNavPath()
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 pb-[var(--safe-bottom)] lg:hidden">
       <div className="mx-auto max-w-xl px-3 pb-3">
-        <div className="flex items-end justify-around rounded-[1.75rem] bg-white/95 px-2 pt-2 pb-2 shadow-[0_-2px_30px_-8px_rgb(8_62_50/0.18)] ring-1 ring-ink-100 backdrop-blur-xl">
+        <div className="flex items-end justify-around rounded-[1.75rem] bg-white px-2 pt-2 pb-2 shadow-[0_-2px_30px_-8px_rgb(8_62_50/0.18)] ring-1 ring-ink-100">
           {tabs.map((t) => {
             const active = t.match(path)
             const Icon = t.icon
             if (t.fab)
               return (
-                <Link key={t.href} href={t.href} aria-label="Foto produk baru" className="-mt-7 flex flex-col items-center">
+                <Link key={t.href} href={t.href} onClick={() => go(t.href)} aria-label="Foto produk baru" className="-mt-7 flex flex-col items-center">
                   <span className="flex size-15 items-center justify-center rounded-full bg-gradient-to-br from-sun-400 to-sun-600 text-white shadow-sun ring-4 ring-white transition active:scale-95">
                     <Icon className="size-7" strokeWidth={2.2} />
                   </span>
@@ -46,7 +67,7 @@ export function BottomNav() {
                 </Link>
               )
             return (
-              <Link key={t.href} href={t.href} className="flex w-16 flex-col items-center gap-1 py-1">
+              <Link key={t.href} href={t.href} onClick={() => go(t.href)} className="flex w-16 flex-col items-center gap-1 py-1">
                 <span className={cx('flex h-8 w-12 items-center justify-center rounded-full transition', active ? 'bg-brand-50 text-brand-700' : 'text-ink-400')}>
                   <Icon className="size-[22px]" strokeWidth={active ? 2.4 : 2} />
                 </span>
@@ -235,7 +256,7 @@ const sideGroups: { title: string; admin?: boolean; items: SideItem[] }[] = [
 
 /** Navigasi samping untuk layar lebar (desktop / tablet landscape). */
 function Sidebar() {
-  const path = usePathname()
+  const { path, go } = useNavPath()
   const router = useRouter()
   const { isAdmin, me } = useRole()
   const { data: store } = useProfile()
@@ -271,6 +292,7 @@ function Sidebar() {
                     <Link
                       key={it.href}
                       href={it.href}
+                      onClick={() => go(it.href)}
                       className={cx(
                         'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition',
                         active ? 'bg-white text-brand-900 shadow-soft' : 'text-brand-100 hover:bg-white/10 hover:text-white',

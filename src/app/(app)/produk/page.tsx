@@ -1,6 +1,6 @@
 'use client'
 import { useRole } from '@/lib/roles'
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState, useDeferredValue } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { Search, Plus, SlidersHorizontal, Sparkles, CloudOff, FileSpreadsheet } from 'lucide-react'
@@ -23,8 +23,10 @@ function Catalog() {
   const { data: profile } = useProfile()
   const prof = profile ?? defaultProfile
   const { isAdmin } = useRole()
-  const [q, setQ] = useState('')
-  const [status, setStatus] = useState<ProductStatus | 'all'>((params.get('status') as ProductStatus) ?? 'all')
+  const [qInput, setQ] = useState('')
+  const q = useDeferredValue(qInput)
+  const [statusUi, setStatus] = useState<ProductStatus | 'all'>((params.get('status') as ProductStatus) ?? 'all')
+  const status = useDeferredValue(statusUi)
   const [cat, setCat] = useState('')
   const [sup, setSup] = useState('')
   const [filters, setFilters] = useState(false)
@@ -85,7 +87,7 @@ function Catalog() {
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-4 size-4.5 -translate-y-1/2 text-ink-400" />
-          <Input className="pl-11" placeholder="Cari nama, SKU, supplier…" value={q} onChange={(e) => setQ(e.target.value)} type="search" />
+          <Input className="pl-11" placeholder="Cari nama, SKU, supplier…" value={qInput} onChange={(e) => setQ(e.target.value)} type="search" />
         </div>
         <button onClick={() => setFilters(true)} className={cx('relative flex size-12 items-center justify-center rounded-2xl border', activeFilters ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-ink-200 bg-white text-ink-600')} aria-label="Filter">
           <SlidersHorizontal className="size-5" />
@@ -94,7 +96,7 @@ function Catalog() {
       </div>
       <div className="no-scrollbar -mx-4 mt-3 flex gap-2 overflow-x-auto px-4">
         {(['all', 'active', 'candidate', 'inactive'] as const).map((s) => (
-          <Chip key={s} active={status === s} onClick={() => setStatus(s)}>
+          <Chip key={s} active={statusUi === s} onClick={() => setStatus(s)}>
             {s === 'all' ? 'Semua' : STATUS_LABEL[s]} <span className="opacity-60">{counts[s]}</span>
           </Chip>
         ))}

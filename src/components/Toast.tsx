@@ -28,7 +28,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         {items.map((t) => (
           <div
             key={t.id}
-            className="animate-sheet pointer-events-auto flex max-w-sm items-center gap-2.5 rounded-2xl bg-ink-900/95 px-4 py-3 text-sm font-medium text-white shadow-lift backdrop-blur"
+            className="animate-sheet pointer-events-auto flex max-w-sm items-center gap-2.5 rounded-2xl bg-ink-900/95 px-4 py-3 text-sm font-medium text-white shadow-lift"
           >
             {t.kind === 'success' && <CheckCircle2 className="size-4.5 shrink-0 text-leaf-400" />}
             {t.kind === 'error' && <AlertCircle className="size-4.5 shrink-0 text-sun-400" />}
