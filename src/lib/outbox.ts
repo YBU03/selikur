@@ -111,7 +111,7 @@ async function run(op: OutboxOp) {
         const blob = await loadBlob(op.photoKey)
         if (blob) photos.push(await uploadPhoto(blob))
       }
-      const { error } = await supabase.from('products').upsert({
+      const { error } = await supabase.from('products').insert({
         id: op.productId,
         name: op.name,
         status: 'candidate',
@@ -122,15 +122,15 @@ async function run(op: OutboxOp) {
         supplier_id: op.supplierId || null,
         category_id: op.categoryId || null,
       })
-      if (error) throw error
-      const { error: e2 } = await supabase.from('variants').upsert({
+      if (error && error.code !== '23505') throw error
+      const { error: e2 } = await supabase.from('variants').insert({
         id: op.variantId,
         product_id: op.productId,
         name: 'Standar',
         buy_price: op.price,
         sell_price: op.sellPrice ?? 0,
       })
-      if (e2) throw e2
+      if (e2 && e2.code !== '23505') throw e2
       if (op.price > 0) {
         await supabase.from('price_history').insert({ variant_id: op.variantId, price: op.price, supplier_id: op.supplierId || null })
       }

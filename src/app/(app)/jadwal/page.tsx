@@ -1,4 +1,5 @@
 'use client'
+import { useRole } from '@/lib/roles'
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -24,6 +25,7 @@ function Jadwal() {
   const { data: products } = useCatalog()
   const { data: buckets } = useSalesBuckets()
   const { data: profile } = useProfile()
+  const { isAdmin } = useRole()
   const [month, setMonth] = useState(startOfMonth(new Date()))
   const [day, setDay] = useState(isoDate(new Date()))
   const [edit, setEdit] = useState<Schedule | 'new' | null>(params.get('baru') ? 'new' : null)
@@ -56,9 +58,11 @@ function Jadwal() {
         subtitle="Kalender kulakan & pengingat"
         back="/menu"
         action={
-          <Button size="sm" onClick={() => setEdit('new')}>
-            <Plus className="size-4" /> Jadwal
-          </Button>
+          isAdmin && (
+            <Button size="sm" onClick={() => setEdit('new')}>
+              <Plus className="size-4" /> Jadwal
+            </Button>
+          )
         }
       />
 
@@ -120,14 +124,16 @@ function Jadwal() {
       </Card>
 
       <p className="mt-5 mb-2 px-1 text-sm font-semibold text-ink-600">{tglPanjang(day)}</p>
-      {selected.length === 0 ? (
+      {selected.length === 0 && !isAdmin ? (
+        <p className="rounded-3xl border border-dashed border-ink-200 py-5 text-center text-sm text-ink-500">Tidak ada jadwal di tanggal ini.</p>
+      ) : selected.length === 0 ? (
         <button onClick={() => setEdit('new')} className="w-full rounded-3xl border border-dashed border-ink-200 py-5 text-sm text-ink-500">
           Tidak ada jadwal. <span className="font-semibold text-brand-700">+ Buat jadwal di tanggal ini</span>
         </button>
       ) : (
         <div className="space-y-2.5">
           {selected.map((s) => (
-            <ScheduleCard key={s.id} s={s} date={day} list={lists?.find((l) => l.schedule_id === s.id)} kritis={kritis} onEdit={() => setEdit(s)} onDelete={() => setDel(s)} />
+            <ScheduleCard key={s.id} s={s} date={day} list={lists?.find((l) => l.schedule_id === s.id)} kritis={kritis} canEdit={isAdmin} onEdit={() => setEdit(s)} onDelete={() => setDel(s)} />
           ))}
         </div>
       )}
@@ -177,6 +183,7 @@ function ScheduleCard({
   date,
   list,
   kritis,
+  canEdit,
   onEdit,
   onDelete,
 }: {
@@ -184,6 +191,7 @@ function ScheduleCard({
   date: string
   list?: { id: string; title: string; status: string; planned_total: number }
   kritis: number
+  canEdit: boolean
   onEdit: () => void
   onDelete: () => void
 }) {
@@ -210,12 +218,16 @@ function ScheduleCard({
             )}
           </div>
         </div>
-        <button onClick={onEdit} className="flex size-9 items-center justify-center rounded-full text-ink-500 hover:bg-ink-100" aria-label="Ubah">
-          <Pencil className="size-4" />
-        </button>
-        <button onClick={onDelete} className="flex size-9 items-center justify-center rounded-full text-red-500 hover:bg-red-50" aria-label="Hapus">
-          <Trash2 className="size-4" />
-        </button>
+        {canEdit && (
+          <>
+            <button onClick={onEdit} className="flex size-9 items-center justify-center rounded-full text-ink-500 hover:bg-ink-100" aria-label="Ubah">
+              <Pencil className="size-4" />
+            </button>
+            <button onClick={onDelete} className="flex size-9 items-center justify-center rounded-full text-red-500 hover:bg-red-50" aria-label="Hapus">
+              <Trash2 className="size-4" />
+            </button>
+          </>
+        )}
       </div>
       {kritis > 0 && date >= isoDate(new Date()) && (
         <p className="mt-2 rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{kritis} varian berstatus Kritis — pastikan masuk daftar belanja.</p>

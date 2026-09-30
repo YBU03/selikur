@@ -1,4 +1,5 @@
 'use client'
+import { useRole } from '@/lib/roles'
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { subDays } from 'date-fns'
@@ -32,6 +33,7 @@ function useSales(days: number) {
 
 export default function PenjualanPage() {
   const [tab, setTab] = useState<Tab>('input')
+  const { isAdmin } = useRole()
   return (
     <div>
       <PageHeader title="Penjualan" subtitle="Data untuk forecast & laba" back="/menu" />
@@ -42,14 +44,14 @@ export default function PenjualanPage() {
           { value: 'input', label: 'Input' },
           { value: 'impor', label: 'Impor' },
           { value: 'riwayat', label: 'Riwayat' },
-          { value: 'laba', label: 'Laba' },
+          ...(isAdmin ? [{ value: 'laba' as Tab, label: 'Laba' }] : []),
         ]}
       />
       <div className="mt-4">
         {tab === 'input' && <ManualInput onDone={() => setTab('riwayat')} />}
         {tab === 'impor' && <ImportSales onDone={() => setTab('riwayat')} />}
         {tab === 'riwayat' && <History />}
-        {tab === 'laba' && <Profit />}
+        {tab === 'laba' && isAdmin && <Profit />}
       </div>
     </div>
   )
@@ -385,6 +387,7 @@ function History() {
   const { data: products } = useCatalog()
   const { data: sales, isPending } = useSales(60)
   const idx = useMemo(() => indexVariants(products), [products])
+  const { isAdmin, me } = useRole()
   const [edit, setEdit] = useState<SalesRow | null>(null)
   const [del, setDel] = useState<SalesRow | null>(null)
   const [form, setForm] = useState({ qty: 0, sale_date: '', channel: 'organik' as Channel })
@@ -418,6 +421,8 @@ function History() {
                     </p>
                   </div>
                   <b className="tabular-nums">{num(r.qty)}</b>
+                  {(isAdmin || r.owner_id === me?.id) && (
+                  <>
                   <button
                     className="flex size-8 items-center justify-center rounded-full text-ink-500 hover:bg-ink-100"
                     aria-label="Ubah"
@@ -431,6 +436,8 @@ function History() {
                   <button className="flex size-8 items-center justify-center rounded-full text-red-500 hover:bg-red-50" aria-label="Hapus" onClick={() => setDel(r)}>
                     <Trash2 className="size-4" />
                   </button>
+                  </>
+                  )}
                 </div>
               )
             })}

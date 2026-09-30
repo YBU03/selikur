@@ -1,4 +1,5 @@
 'use client'
+import { useRole } from '@/lib/roles'
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -18,6 +19,7 @@ export default function BelanjaPage() {
   const { data: lists, isPending } = useLists()
   const { data: schedules } = useSchedules()
   const { data: profile } = useProfile()
+  const { isAdmin } = useRole()
   const [tab, setTab] = useState<'aktif' | 'selesai'>('aktif')
   const [sheet, setSheet] = useState(false)
 
@@ -30,9 +32,11 @@ export default function BelanjaPage() {
         title="Daftar Belanja"
         subtitle="Rencana kulakan & realisasi"
         action={
-          <Button size="sm" onClick={() => setSheet(true)}>
-            <Plus className="size-4" /> Daftar
-          </Button>
+          isAdmin && (
+            <Button size="sm" onClick={() => setSheet(true)}>
+              <Plus className="size-4" /> Daftar
+            </Button>
+          )
         }
       />
       <Link href="/forecast" className="mb-4 flex items-center gap-3 rounded-3xl bg-brand-50 p-4 ring-1 ring-brand-100">

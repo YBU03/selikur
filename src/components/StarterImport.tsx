@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { FileSpreadsheet, DownloadCloud } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useSuppliers } from '@/lib/queries'
+import { useRole } from '@/lib/roles'
 import { Button, Card } from './ui'
 import { useToast, errMsg } from './Toast'
 
@@ -13,7 +14,8 @@ export default function StarterImport({ compact }: { compact?: boolean }) {
   const toast = useToast()
   const { data: suppliers, isPending } = useSuppliers()
   const [busy, setBusy] = useState(false)
-  if (isPending || suppliers?.some((s) => s.name === 'Toko Kembar' || s.name === 'Toko OBI')) return null
+  const { isAdmin } = useRole()
+  if (!isAdmin || isPending || suppliers?.some((s) => s.name === 'Toko Kembar' || s.name === 'Toko OBI')) return null
 
   async function run() {
     setBusy(true)

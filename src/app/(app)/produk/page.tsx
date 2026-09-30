@@ -1,4 +1,5 @@
 'use client'
+import { useRole } from '@/lib/roles'
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -21,6 +22,7 @@ function Catalog() {
   const { data: buckets } = useSalesBuckets()
   const { data: profile } = useProfile()
   const prof = profile ?? defaultProfile
+  const { isAdmin } = useRole()
   const [q, setQ] = useState('')
   const [status, setStatus] = useState<ProductStatus | 'all'>((params.get('status') as ProductStatus) ?? 'all')
   const [cat, setCat] = useState('')
@@ -73,9 +75,11 @@ function Catalog() {
         title="Katalog Produk"
         subtitle={`${num(counts.all)} produk`}
         action={
-          <ButtonLink href="/produk/baru" size="sm">
-            <Plus className="size-4" /> Produk
-          </ButtonLink>
+          isAdmin && (
+            <ButtonLink href="/produk/baru" size="sm">
+              <Plus className="size-4" /> Produk
+            </ButtonLink>
+          )
         }
       />
       <div className="flex gap-2">
@@ -118,7 +122,7 @@ function Catalog() {
           />
         )}
         {rows.slice(0, limit).map((p) => {
-          const prices = p.variants.map((v) => v.buy_price)
+          const prices = p.variants.map((v) => (isAdmin ? v.buy_price : v.sell_price))
           const min = Math.min(...prices)
           const max = Math.max(...prices)
           const stock = p.variants.reduce((s, v) => s + v.stock, 0)
@@ -159,7 +163,7 @@ function Catalog() {
         <div ref={sentinel} />
       </div>
 
-      {counts.all > 0 && (
+      {isAdmin && counts.all > 0 && (
         <Button
           variant="ghost"
           block

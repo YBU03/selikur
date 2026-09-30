@@ -15,10 +15,13 @@ import PhotoStrip, { toPhotoItems, type PhotoItem } from './PhotoStrip'
 import VariantSheet, { VariantFields, emptyVariant } from './VariantSheet'
 import { NewCategorySheet, SupplierSheet, waLink } from './QuickCreate'
 import { useToast, errMsg } from './Toast'
+import { useRole } from '@/lib/roles'
 
 export default function ProductEditor({ product }: { product: Product | null }) {
   const router = useRouter()
   const toast = useToast()
+  const { isAdmin } = useRole()
+  const ro = !!product && !isAdmin
   const invalidate = useInvalidate()
   const { data: categories } = useCategories()
   const { data: suppliers } = useSuppliers()
@@ -150,7 +153,7 @@ export default function ProductEditor({ product }: { product: Product | null }) 
         subtitle={product ? `${product.variants.length} varian${product.source === 'field' ? ' · temuan lapangan' : ''}` : 'Upload foto & isi detail'}
         back="/produk"
         action={
-          product && (
+          product && !ro && (
             <button onClick={() => setConfirmDel(true)} className="flex size-10 items-center justify-center rounded-full text-red-600 hover:bg-red-50" aria-label="Hapus produk">
               <Trash2 className="size-5" />
             </button>
@@ -162,7 +165,15 @@ export default function ProductEditor({ product }: { product: Product | null }) 
         <p className="mb-3 rounded-2xl bg-sun-50 px-4 py-2.5 text-sm text-sun-700">Produk ini belum tersinkron. Buka lagi saat online untuk melengkapi.</p>
       )}
 
-      <PhotoStrip items={photos} onChange={setPhotos} />
+      {ro && <p className="mb-3 rounded-2xl bg-ink-100 px-4 py-2.5 text-sm text-ink-600">Mode lihat saja. Perubahan produk dilakukan oleh Admin.</p>}
+      <fieldset disabled={ro} className="min-w-0">
+      {ro ? (
+        <div className="no-scrollbar -mx-4 flex gap-2.5 overflow-x-auto px-4">
+          {photos.length ? photos.map((p) => <Thumb key={p.key} path={p.url} size={112} />) : <Thumb path={null} size={112} />}
+        </div>
+      ) : (
+        <PhotoStrip items={photos} onChange={setPhotos} />
+      )}
 
       <div className="mt-5 space-y-3.5">
         <Input label="Nama produk" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="mis. Tumbler Stainless 500ml" />
@@ -226,15 +237,16 @@ export default function ProductEditor({ product }: { product: Product | null }) 
           </div>
         </label>
         <Textarea label="Catatan" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Kualitas, MOQ, catatan negosiasi…" />
-        <div className="rounded-3xl bg-sun-50/70 p-3.5 ring-1 ring-sun-100">
+        {!ro && <div className="rounded-3xl bg-sun-50/70 p-3.5 ring-1 ring-sun-100">
           <p className="text-sm font-semibold text-ink-800">Potongan & komisi produk ini</p>
           <p className="mb-3 text-xs text-ink-500">Kosongkan untuk memakai pengaturan toko ({num(prof.platform_fee_pct, 1)}% platform, {num(prof.affiliate_pct, 1)}% affiliate).</p>
           <div className="grid grid-cols-2 gap-3">
             <PercentInput label="Potongan platform" value={form.platform_fee_pct} placeholder={num(prof.platform_fee_pct, 1)} onChange={(n) => setForm({ ...form, platform_fee_pct: n })} />
             <PercentInput label="Komisi affiliate" value={form.affiliate_pct} placeholder={num(prof.affiliate_pct, 1)} onChange={(n) => setForm({ ...form, affiliate_pct: n })} />
           </div>
-        </div>
+        </div>}
       </div>
+      </fieldset>
 
       {!product && (
         <>
@@ -247,17 +259,17 @@ export default function ProductEditor({ product }: { product: Product | null }) 
         </>
       )}
 
-      <div className="sticky bottom-28 z-10 mt-5">
+      {!ro && <div className="sticky bottom-28 z-10 mt-5">
         <Button block size="lg" loading={saving} onClick={save}>
           {product ? 'Simpan perubahan' : 'Simpan produk'}
         </Button>
-      </div>
+      </div>}
 
       {product && (
         <>
           <SectionTitle
             action={
-              <button onClick={() => setVariantSheet({ open: true, v: null })} className="flex items-center gap-1 text-sm font-semibold text-brand-700">
+              !ro && <button onClick={() => setVariantSheet({ open: true, v: null })} className="flex items-center gap-1 text-sm font-semibold text-brand-700">
                 <Plus className="size-4" /> Varian
               </button>
             }
@@ -269,7 +281,7 @@ export default function ProductEditor({ product }: { product: Product | null }) 
               const v = f.variant
               const b = breakdown(v.buy_price, v.sell_price, cfg)
               return (
-                <button key={v.id} onClick={() => setVariantSheet({ open: true, v })} className="block w-full text-left">
+                <button key={v.id} disabled={ro} onClick={() => setVariantSheet({ open: true, v })} className="block w-full text-left">
                   <Card className="flex items-center gap-3 transition active:scale-[0.99]">
                     <Thumb path={v.photo ?? product.photos[0]} size={52} />
                     <div className="min-w-0 flex-1">
@@ -278,16 +290,22 @@ export default function ProductEditor({ product }: { product: Product | null }) 
                         {product.status === 'active' && <StockBadge status={f.status} />}
                       </div>
                       <p className="mt-0.5 text-xs text-ink-500">
-                        {rupiah(v.buy_price)} → {rupiah(v.sell_price)} · laba{' '}
-                        <span className={cx(b.profit <= 0 ? 'text-red-600' : 'text-leaf-600', 'font-semibold')}>
-                          {rupiah(b.profit)} ({pct(b.marginOnCost, 0)})
-                        </span>
+                        {ro ? (
+                          <>Harga jual {rupiah(v.sell_price)}</>
+                        ) : (
+                          <>
+                            {rupiah(v.buy_price)} → {rupiah(v.sell_price)} · laba{' '}
+                            <span className={cx(b.profit <= 0 ? 'text-red-600' : 'text-leaf-600', 'font-semibold')}>
+                              {rupiah(b.profit)} ({pct(b.marginOnCost, 0)})
+                            </span>
+                          </>
+                        )}
                       </p>
                       <p className="text-xs text-ink-500">
                         Stok {num(v.stock)} / min {num(v.min_stock)} · {num(f.weekly, 1)}/mg{v.sku ? ` · ${v.sku}` : ''}
                       </p>
                     </div>
-                    <ChevronRight className="size-5 text-ink-300" />
+                    {!ro && <ChevronRight className="size-5 text-ink-300" />}
                   </Card>
                 </button>
               )
@@ -323,6 +341,8 @@ export default function ProductEditor({ product }: { product: Product | null }) 
             </div>
           </Card>
 
+          {!ro && (
+            <>
           <SectionTitle>
             <span className="flex items-center gap-1.5">
               <History className="size-3.5" /> Riwayat harga kulakan
@@ -352,6 +372,9 @@ export default function ProductEditor({ product }: { product: Product | null }) 
               <p className="px-4 py-5 text-center text-sm text-ink-500">Riwayat tercatat otomatis setiap belanja selesai.</p>
             )}
           </Card>
+
+            </>
+          )}
 
           <VariantSheet open={variantSheet.open} onClose={() => setVariantSheet({ open: false, v: null })} product={product} variant={variantSheet.v} />
         </>

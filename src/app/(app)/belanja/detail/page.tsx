@@ -1,4 +1,5 @@
 'use client'
+import { useRole } from '@/lib/roles'
 import { Suspense, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
@@ -33,6 +34,7 @@ function Detail() {
   const idx = useMemo(() => indexVariants(products), [products])
   const supMap = useMemo(() => new Map((suppliers ?? []).map((s) => [s.id, s])), [suppliers])
 
+  const { isAdmin } = useRole()
   const [mode, setMode] = useState<'rencana' | 'belanja'>(params.get('mode') === 'belanja' ? 'belanja' : 'rencana')
   const [groupBy, setGroupBy] = useState<'supplier' | 'lokasi'>('supplier')
   const [editItem, setEditItem] = useState<ShoppingItem | null>(null)
@@ -181,14 +183,14 @@ function Detail() {
             </button>
           ))}
         </div>
-        {!done && !shopping && (
+        {isAdmin && !done && !shopping && (
           <button onClick={() => setAdding(true)} className="flex items-center gap-1 text-sm font-semibold text-brand-700">
             <Plus className="size-4" /> Barang
           </button>
         )}
       </div>
 
-      {items.length === 0 && <EmptyState title="Daftar masih kosong" text="Tambah barang manual atau buat dari forecast." action={<Button size="sm" onClick={() => setAdding(true)}>Tambah barang</Button>} />}
+      {items.length === 0 && <EmptyState title="Daftar masih kosong" text="Tambah barang manual atau buat dari forecast." action={isAdmin ? <Button size="sm" onClick={() => setAdding(true)}>Tambah barang</Button> : undefined} />}
 
       <div className="space-y-4">
         {[...groups.entries()].map(([key, g]) => (
@@ -270,7 +272,7 @@ function Detail() {
                           : `${e ? unitLabel(it.qty_planned, e.variant.unit, e.variant.unit_size) : `${num(it.qty_planned)} pcs`} × ${rupiah(it.price_planned)}`}
                       </p>
                     </div>
-                    {done ? (
+                    {done || !isAdmin ? (
                       <Badge tone={isBought ? 'leaf' : na ? 'red' : 'gray'}>{isBought ? 'Terbeli' : na ? 'Tidak ada' : 'Tidak dibeli'}</Badge>
                     ) : (
                       <>
@@ -302,7 +304,7 @@ function Detail() {
       {/* sheet menu */}
       <Sheet open={menu} onClose={() => setMenu(false)} title="Aksi daftar">
         <div className="grid gap-1">
-          {!done && (
+          {isAdmin && !done && (
             <MenuBtn icon={Pencil} label="Ubah judul, anggaran, jadwal" onClick={() => (setMenu(false), setEditList(true))} />
           )}
           <MenuBtn icon={FileText} label="Unduh PDF siap cetak" onClick={() => doExport('pdf', 'download')} />
@@ -313,7 +315,7 @@ function Detail() {
             label="Kirim teks daftar ke WhatsApp"
             onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(listWhatsAppText(list, items, products ?? [], suppliers ?? []))}`, '_blank')}
           />
-          <MenuBtn icon={Trash2} label="Hapus daftar" danger onClick={() => (setMenu(false), setDelList(true))} />
+          {isAdmin && <MenuBtn icon={Trash2} label="Hapus daftar" danger onClick={() => (setMenu(false), setDelList(true))} />}
         </div>
       </Sheet>
 

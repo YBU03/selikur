@@ -3,8 +3,9 @@ export type ListStatus = 'draft' | 'in_progress' | 'done'
 export type ItemStatus = 'pending' | 'bought' | 'unavailable'
 export type Recurrence = 'none' | 'weekly' | 'biweekly' | 'monthly'
 
+/** Pengaturan toko (satu baris bersama, tabel store_settings). */
 export interface Profile {
-  id: string
+  id: number
   store_name: string
   coverage_weeks: number
   forecast_method: 'sma' | 'wma'
@@ -76,6 +77,7 @@ export interface Product {
 
 export interface SalesRow {
   id: string
+  owner_id: string
   variant_id: string
   sale_date: string
   qty: number
@@ -159,4 +161,31 @@ export const LIST_STATUS: Record<ListStatus, { label: string; tone: 'gray' | 'or
   draft: { label: 'Draf', tone: 'gray' },
   in_progress: { label: 'Berjalan', tone: 'orange' },
   done: { label: 'Selesai', tone: 'green' },
+}
+
+export type Role = 'super_admin' | 'admin' | 'user'
+export type MemberStatus = 'pending' | 'approved' | 'rejected' | 'disabled'
+
+export interface Member {
+  id: string
+  email: string | null
+  full_name: string | null
+  role: Role
+  status: MemberStatus
+  approved_by: string | null
+  approved_at: string | null
+  created_at: string
+}
+
+export const ROLE_LABEL: Record<Role, string> = {
+  super_admin: 'Super Admin',
+  admin: 'Admin',
+  user: 'User',
+}
+
+export const MEMBER_STATUS_LABEL: Record<MemberStatus, string> = {
+  pending: 'Menunggu',
+  approved: 'Aktif',
+  rejected: 'Ditolak',
+  disabled: 'Nonaktif',
 }

@@ -3,12 +3,13 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useMemo } from 'react'
 import { differenceInCalendarDays, parseISO, startOfMonth, subMonths } from 'date-fns'
-import { Camera, CalendarClock, ChevronRight, LineChart, ClipboardList, BarChart3, Settings, TrendingUp, TrendingDown, AlertTriangle, Sparkles, Percent } from 'lucide-react'
-import { useCatalog, useSalesBuckets, useProfile, useSchedules, useLists, defaultProfile, variantLabel } from '@/lib/queries'
+import { Camera, CalendarClock, ChevronRight, LineChart, ClipboardList, BarChart3, Settings, TrendingUp, TrendingDown, AlertTriangle, Sparkles, Percent, UserPlus, ShoppingBasket } from 'lucide-react'
+import { useCatalog, useSalesBuckets, useProfile, useSchedules, useLists, defaultProfile, variantLabel, useMembers } from '@/lib/queries'
 import { forecastAll } from '@/lib/forecast'
 import { nextSchedule } from '@/lib/reminders'
 import { rupiah, num, tglPanjang, pct } from '@/lib/format'
 import StarterImport from '@/components/StarterImport'
+import { useRole } from '@/lib/roles'
 import { Card, SectionTitle, StockBadge, Thumb, Skeleton, cx } from '@/components/ui'
 
 export default function Beranda() {
@@ -18,6 +19,9 @@ export default function Beranda() {
   const { data: schedules } = useSchedules()
   const { data: lists } = useLists()
   const p = profile ?? defaultProfile
+  const { isAdmin, me } = useRole()
+  const { data: members } = useMembers(isAdmin)
+  const waiting = (members ?? []).filter((m) => m.status === 'pending').length
 
   const forecasts = useMemo(() => forecastAll(products ?? [], buckets ?? new Map(), p), [products, buckets, p])
   const kritis = forecasts.filter((f) => f.status === 'kritis')
@@ -53,10 +57,25 @@ export default function Beranda() {
           <p className="text-sm text-ink-500">{greet},</p>
           <p className="truncate text-lg font-bold tracking-tight">{p.store_name}</p>
         </div>
-        <Link href="/pengaturan" aria-label="Pengaturan" className="inline-flex size-10 items-center justify-center rounded-full text-ink-700 hover:bg-ink-100">
-          <Settings className="size-5" />
-        </Link>
+        {isAdmin && (
+          <Link href="/pengaturan" aria-label="Pengaturan" className="inline-flex size-10 items-center justify-center rounded-full text-ink-700 hover:bg-ink-100">
+            <Settings className="size-5" />
+          </Link>
+        )}
       </header>
+
+      {isAdmin && waiting > 0 && (
+        <Link href="/pengguna" className="mb-4 flex items-center gap-3 rounded-3xl bg-sun-50 p-3.5 ring-1 ring-sun-200">
+          <span className="flex size-10 items-center justify-center rounded-2xl bg-sun-500 text-white">
+            <UserPlus className="size-5" />
+          </span>
+          <span className="flex-1 text-sm">
+            <b className="block text-ink-900">{waiting} akun menunggu persetujuan</b>
+            <span className="text-ink-600">Ketuk untuk setujui atau tolak</span>
+          </span>
+          <ChevronRight className="size-5 text-sun-700" />
+        </Link>
+      )}
 
       {!isPending && (products ?? []).length === 0 && (
         <div className="mb-4">
@@ -87,8 +106,10 @@ export default function Beranda() {
         <p className="text-sm font-medium text-brand-100">Kebutuhan kulakan</p>
         {isPending ? (
           <Skeleton className="mt-2 h-9 w-40 bg-white/10" />
-        ) : (
+        ) : isAdmin ? (
           <p className="mt-1 text-3xl font-extrabold tracking-tight tabular-nums">{rupiah(estCost)}</p>
+        ) : (
+          <p className="mt-1 text-3xl font-extrabold tracking-tight tabular-nums">{perlu.length} varian</p>
         )}
         <div className="mt-3 flex gap-2 text-xs font-semibold">
           <span className="rounded-full bg-red-500/90 px-2.5 py-1">{kritis.length} kritis</span>
@@ -157,6 +178,7 @@ export default function Beranda() {
 
       {/* Statistik */}
       <div className="mt-3 grid grid-cols-2 gap-3">
+        {isAdmin ? (
         <Link href="/rekap">
           <Card className="h-full">
             <p className="text-xs font-medium text-ink-500">Belanja bulan ini</p>
@@ -169,6 +191,15 @@ export default function Beranda() {
             )}
           </Card>
         </Link>
+        ) : (
+          <Link href="/belanja">
+            <Card className="h-full">
+              <p className="text-xs font-medium text-ink-500">Masuk sebagai</p>
+              <p className="mt-1 truncate text-lg font-bold">{me?.full_name ?? 'User'}</p>
+              <p className="mt-0.5 text-xs font-semibold text-brand-700">Buka daftar belanja</p>
+            </Card>
+          </Link>
+        )}
         <Link href="/produk">
           <Card className="h-full">
             <p className="text-xs font-medium text-ink-500">Katalog</p>
@@ -208,8 +239,15 @@ export default function Beranda() {
         {[
           { href: '/penjualan', icon: ClipboardList, label: 'Input Jual', tone: 'bg-brand-50 text-brand-700' },
           { href: '/forecast', icon: LineChart, label: 'Forecast', tone: 'bg-leaf-500/10 text-leaf-600' },
-          { href: '/harga', icon: Percent, label: 'Harga Jual', tone: 'bg-sun-50 text-sun-600' },
-          { href: '/rekap', icon: BarChart3, label: 'Rekap', tone: 'bg-ink-100 text-ink-700' },
+          ...(isAdmin
+            ? [
+                { href: '/harga', icon: Percent, label: 'Harga Jual', tone: 'bg-sun-50 text-sun-600' },
+                { href: '/rekap', icon: BarChart3, label: 'Rekap', tone: 'bg-ink-100 text-ink-700' },
+              ]
+            : [
+                { href: '/jadwal', icon: CalendarClock, label: 'Jadwal', tone: 'bg-sun-50 text-sun-600' },
+                { href: '/belanja', icon: ShoppingBasket, label: 'Belanja', tone: 'bg-ink-100 text-ink-700' },
+              ]),
         ].map((m) => (
           <Link key={m.href} href={m.href} className="flex flex-col items-center gap-1.5 rounded-2xl py-2 transition active:scale-95">
             <span className={cx('flex size-13 items-center justify-center rounded-2xl', m.tone)}>

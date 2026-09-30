@@ -1,4 +1,5 @@
 'use client'
+import { AdminOnly } from '@/components/AppShell'
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { addMonths, addWeeks, endOfMonth, endOfWeek, startOfMonth, startOfWeek, subMonths, subWeeks, addDays } from 'date-fns'
@@ -21,7 +22,7 @@ function range(period: Period, anchor: Date) {
   return { from, to: addDays(endOfMonth(anchor), 1) }
 }
 
-export default function RekapPage() {
+function RekapPageInner() {
   const toast = useToast()
   const [period, setPeriod] = useState<Period>('bulan')
   const [anchor, setAnchor] = useState(new Date())
@@ -190,5 +191,13 @@ function Breakdown({ title, groups, total, limit }: { title: string; groups: Gro
         ))}
       </Card>
     </>
+  )
+}
+
+export default function RekapPage() {
+  return (
+    <AdminOnly>
+      <RekapPageInner />
+    </AdminOnly>
   )
 }

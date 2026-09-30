@@ -2,12 +2,15 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Home, Package, Camera, ShoppingBasket, LayoutGrid, CloudOff, RefreshCw } from 'lucide-react'
+import Image from 'next/image'
+import { Home, Package, Camera, ShoppingBasket, LayoutGrid, CloudOff, RefreshCw, Hourglass, ShieldX, LogOut, Lock } from 'lucide-react'
 import type { Session } from '@supabase/supabase-js'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { onOutboxChange, flush } from '@/lib/outbox'
-import { cx, Spinner } from './ui'
+import { Button, cx, Spinner } from './ui'
+import { useMe } from '@/lib/queries'
+import { useRole } from '@/lib/roles'
 import { useReminders } from '@/lib/reminders'
 
 const tabs = [
@@ -19,7 +22,7 @@ const tabs = [
     href: '/menu',
     label: 'Lainnya',
     icon: LayoutGrid,
-    match: (p: string) => ['/menu', '/forecast', '/penjualan', '/jadwal', '/rekap', '/pengaturan', '/harga'].some((x) => p.startsWith(x)),
+    match: (p: string) => ['/menu', '/forecast', '/penjualan', '/jadwal', '/rekap', '/pengaturan', '/harga', '/pengguna'].some((x) => p.startsWith(x)),
   },
 ]
 
@@ -98,6 +101,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s)
       if (event === 'SIGNED_OUT') qc.clear()
+      if (event === 'SIGNED_IN') void qc.invalidateQueries({ queryKey: ['me'] })
     })
     return () => sub.subscription.unsubscribe()
   }, [qc])
@@ -110,6 +114,77 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex min-h-dvh items-center justify-center">
         <Spinner className="size-7" />
+      </div>
+    )
+  return <MemberGate>{children}</MemberGate>
+}
+
+/** Akun baru harus disetujui admin sebelum bisa melihat data toko. */
+function MemberGate({ children }: { children: React.ReactNode }) {
+  const { data: me, isPending, refetch, isFetching, error } = useMe()
+  const router = useRouter()
+  if (isPending && !me)
+    return (
+      <div className="flex min-h-dvh items-center justify-center">
+        <Spinner className="size-7" />
+      </div>
+    )
+  if (me?.status === 'approved') return <>{children}</>
+  const offline = !me && !!error
+  const pending = !offline && (!me || me.status === 'pending')
+  return (
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-gradient-to-b from-brand-900 to-brand-700 px-6 text-center text-white">
+      <div className="rounded-[1.75rem] bg-white p-2.5 shadow-lift">
+        <Image src="/logo-mark.png" alt="Selikur" width={64} height={64} className="rounded-2xl" />
+      </div>
+      <div className="mt-6 flex size-14 items-center justify-center rounded-2xl bg-white/15">
+        {offline ? <CloudOff className="size-7" /> : pending ? <Hourglass className="size-7" /> : <ShieldX className="size-7" />}
+      </div>
+      <h1 className="mt-4 text-2xl font-extrabold">{offline ? 'Gagal memuat akun' : pending ? 'Menunggu persetujuan' : 'Akses tidak aktif'}</h1>
+      <p className="mt-2 max-w-xs text-brand-100">
+        {offline
+          ? 'Periksa koneksi internet lalu coba lagi.'
+          : pending
+          ? `Halo ${me?.full_name ?? ''}, akun kamu sudah terdaftar. Minta admin toko menyetujui akunmu di menu Kelola Pengguna.`
+          : me?.status === 'rejected'
+            ? 'Pendaftaran akun ini ditolak admin. Hubungi admin toko jika ini keliru.'
+            : 'Akun ini dinonaktifkan admin. Hubungi admin toko untuk mengaktifkan kembali.'}
+      </p>
+      {me?.email && <p className="mt-3 rounded-full bg-white/10 px-3 py-1 text-sm">{me.email}</p>}
+      <div className="mt-8 flex w-full max-w-xs flex-col gap-2">
+        <Button variant="accent" loading={isFetching} onClick={() => refetch()}>
+          <RefreshCw className="size-4" /> Cek lagi
+        </Button>
+        <Button
+          variant="ghost"
+          className="text-white hover:bg-white/10"
+          onClick={async () => {
+            await supabase.auth.signOut()
+            router.replace('/masuk')
+          }}
+        >
+          <LogOut className="size-4" /> Keluar
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/** Bungkus halaman yang hanya boleh dibuka admin / super admin. */
+export function AdminOnly({ children }: { children: React.ReactNode }) {
+  const { isAdmin, loading } = useRole()
+  if (loading) return <Spinner className="mx-auto mt-20 size-7" />
+  if (!isAdmin)
+    return (
+      <div className="flex flex-col items-center px-6 pt-24 text-center">
+        <div className="mb-3 flex size-14 items-center justify-center rounded-2xl bg-ink-100 text-ink-500">
+          <Lock className="size-7" />
+        </div>
+        <p className="font-semibold">Khusus admin</p>
+        <p className="mt-1 max-w-xs text-sm text-ink-500">Halaman ini hanya bisa dibuka Admin atau Super Admin.</p>
+        <Link href="/" className="mt-4 text-sm font-semibold text-brand-700">
+          Kembali ke Beranda
+        </Link>
       </div>
     )
   return <>{children}</>

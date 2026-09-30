@@ -1,4 +1,5 @@
 'use client'
+import { useRole } from '@/lib/roles'
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -25,6 +26,7 @@ export default function ForecastPage() {
 
   const [coverage, setCoverage] = useState<number>(Number(prof.coverage_weeks))
   const [method, setMethod] = useState(prof.forecast_method)
+  const { isAdmin } = useRole()
   const [filter, setFilter] = useState<StockStatus | 'all'>('all')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [qtyOverride, setQtyOverride] = useState<Record<string, number>>({})
@@ -143,7 +145,7 @@ export default function ForecastPage() {
                   </div>
                   <div className="flex-1 text-right text-xs text-ink-500">
                     <p>{unitLabel(qty, f.variant.unit, f.variant.unit_size)}</p>
-                    <p className="font-semibold text-ink-800">{rupiah(qty * f.variant.buy_price)}</p>
+                    {isAdmin && <p className="font-semibold text-ink-800">{rupiah(qty * f.variant.buy_price)}</p>}
                   </div>
                 </div>
               )}
@@ -152,7 +154,7 @@ export default function ForecastPage() {
         })}
       </div>
 
-      {picked.length > 0 && (
+      {isAdmin && picked.length > 0 && (
         <div className="sticky bottom-28 z-10 mt-4">
           <Button block size="lg" onClick={() => setSheet(true)}>
             <ShoppingCart className="size-5" /> Buat daftar belanja · {picked.length} item · {rupiah(total)}
@@ -186,7 +188,7 @@ export default function ForecastPage() {
             const { error: e2 } = await supabase.from('shopping_items').insert(rows)
             if (e2) throw e2
             if (coverage !== Number(prof.coverage_weeks) || method !== prof.forecast_method)
-              await supabase.from('profiles').update({ coverage_weeks: coverage, forecast_method: method }).eq('id', prof.id)
+              await supabase.from('store_settings').update({ coverage_weeks: coverage, forecast_method: method }).eq('id', 1)
             await invalidate(qk.lists, qk.profile)
             toast('Daftar belanja dibuat')
             router.push(`/belanja/detail?id=${list.id}`)

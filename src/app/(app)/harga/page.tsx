@@ -1,4 +1,5 @@
 'use client'
+import { AdminOnly } from '@/components/AppShell'
 import { useMemo, useState } from 'react'
 import { Calculator, Settings2, Search, Check } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -52,7 +53,7 @@ function SimTable({ cost, cfg, selected, onPick }: { cost: number; cfg: PricingC
   )
 }
 
-export default function HargaPage() {
+function HargaPageInner() {
   const profile = usePricing()
   const { data: products, isPending } = useCatalog()
   const [cost, setCost] = useState(50000)
@@ -241,5 +242,13 @@ function ProductPricingSheet({ product, onClose }: { product: Product | null; on
         </div>
       )}
     </Sheet>
+  )
+}
+
+export default function HargaPage() {
+  return (
+    <AdminOnly>
+      <HargaPageInner />
+    </AdminOnly>
   )
 }

@@ -57,7 +57,7 @@ export default function PricingSettings({ open, onClose }: { open: boolean; onCl
           loading={busy}
           onClick={async () => {
             setBusy(true)
-            const { error } = await supabase.from('profiles').update(f).eq('id', profile.id)
+            const { error } = await supabase.from('store_settings').update(f).eq('id', 1)
             setBusy(false)
             if (error) return toast(errMsg(error), 'error')
             await invalidate(qk.profile)

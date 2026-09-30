@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { Mail, Lock, Store } from 'lucide-react'
+import { Mail, Lock, User } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Button, Input, Segmented } from '@/components/ui'
 import { useToast, errMsg } from '@/components/Toast'
@@ -34,7 +34,7 @@ export default function MasukPage() {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { store_name: store || 'Toko Saya' }, emailRedirectTo: `${location.origin}/` },
+          options: { data: { full_name: store.trim() }, emailRedirectTo: `${location.origin}/` },
         })
         if (error) throw error
         if (!data.session) setSent(true)
@@ -67,7 +67,7 @@ export default function MasukPage() {
                 <Mail className="size-7" />
               </div>
               <p className="text-lg font-bold">Cek email kamu</p>
-              <p className="mt-1 text-sm text-ink-500">Kami mengirim tautan konfirmasi ke {email}. Buka tautan itu untuk mulai memakai Selikur.</p>
+              <p className="mt-1 text-sm text-ink-500">Kami mengirim tautan konfirmasi ke {email}. Setelah dikonfirmasi, admin toko perlu menyetujui akunmu sebelum bisa melihat data.</p>
               <Button variant="soft" className="mt-5" onClick={() => (setSent(false), setMode('masuk'))}>
                 Kembali ke Masuk
               </Button>
@@ -85,8 +85,8 @@ export default function MasukPage() {
               <form onSubmit={submit} className="mt-5 space-y-3.5">
                 {mode === 'daftar' && (
                   <div className="relative">
-                    <Store className="pointer-events-none absolute top-1/2 left-4 size-4.5 -translate-y-1/2 text-ink-400" />
-                    <Input placeholder="Nama toko" value={store} onChange={(e) => setStore(e.target.value)} className="pl-11" />
+                    <User className="pointer-events-none absolute top-1/2 left-4 size-4.5 -translate-y-1/2 text-ink-400" />
+                    <Input required placeholder="Nama kamu" value={store} onChange={(e) => setStore(e.target.value)} className="pl-11" />
                   </div>
                 )}
                 <div className="relative">

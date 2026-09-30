@@ -1,4 +1,5 @@
 'use client'
+import { AdminOnly } from '@/components/AppShell'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Pencil, Trash2, Plus, LogOut, FileSpreadsheet, MessageCircle, MapPin, DownloadCloud, Percent, X } from 'lucide-react'
@@ -14,7 +15,7 @@ import PricingSettings from '@/components/PricingSettings'
 import { useToast, errMsg } from '@/components/Toast'
 import StarterImport from '@/components/StarterImport'
 
-export default function PengaturanPage() {
+function PengaturanPageInner() {
   const router = useRouter()
   const toast = useToast()
   const invalidate = useInvalidate()
@@ -84,7 +85,7 @@ export default function PengaturanPage() {
           onClick={async () => {
             setBusy(true)
             const { error } = await supabase
-              .from('profiles')
+              .from('store_settings')
               .update({
                 store_name: f.store_name.trim() || 'Toko Saya',
                 coverage_weeks: f.coverage_weeks,
@@ -93,7 +94,7 @@ export default function PengaturanPage() {
                 seasonal_factor: f.seasonal_factor,
                 seasonal_label: f.seasonal_label,
               })
-              .eq('id', p.id)
+              .eq('id', 1)
             setBusy(false)
             if (error) return toast(errMsg(error), 'error')
             await invalidate(qk.profile)
@@ -314,3 +315,11 @@ function CategorySheet({ category, onClose }: { category: Category | 'new' | nul
   )
 }
 
+
+export default function PengaturanPage() {
+  return (
+    <AdminOnly>
+      <PengaturanPageInner />
+    </AdminOnly>
+  )
+}

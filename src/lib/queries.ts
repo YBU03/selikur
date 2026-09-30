@@ -1,7 +1,7 @@
 'use client'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from './supabase'
-import type { Category, Product, Profile, Schedule, ShoppingItem, ShoppingList, Supplier, PriceHistory } from './types'
+import type { Category, Member, Product, Profile, Schedule, ShoppingItem, ShoppingList, Supplier, PriceHistory } from './types'
 import { HISTORY_WEEKS, toBuckets } from './forecast'
 
 function check<T>(res: { data: T | null; error: unknown }): T {
@@ -11,6 +11,8 @@ function check<T>(res: { data: T | null; error: unknown }): T {
 
 export const qk = {
   profile: ['profile'] as const,
+  me: ['me'] as const,
+  members: ['members'] as const,
   categories: ['categories'] as const,
   suppliers: ['suppliers'] as const,
   catalog: ['catalog'] as const,
@@ -20,23 +22,38 @@ export const qk = {
   schedules: ['schedules'] as const,
 }
 
+/** Pengaturan toko bersama. */
 export function useProfile() {
   return useQuery({
     queryKey: qk.profile,
+    queryFn: async () => check(await supabase.from('store_settings').select('*').eq('id', 1).single()) as Profile,
+  })
+}
+
+/** Akun yang sedang masuk (peran & status persetujuan). */
+export function useMe() {
+  return useQuery({
+    queryKey: qk.me,
     queryFn: async () => {
       const { data: s } = await supabase.auth.getSession()
       const uid = s.session?.user.id
-      const res = await supabase.from('profiles').select('*').eq('id', uid!).maybeSingle()
-      if (res.error) throw res.error
-      if (res.data) return res.data as Profile
-      const ins = await supabase.from('profiles').insert({ id: uid }).select().single()
-      return check(ins) as Profile
+      if (!uid) return null
+      return check(await supabase.from('profiles').select('*').eq('id', uid).maybeSingle()) as Member | null
     },
+    refetchInterval: (q) => (q.state.data?.status === 'pending' ? 15000 : false),
+  })
+}
+
+export function useMembers(enabled = true) {
+  return useQuery({
+    queryKey: qk.members,
+    enabled,
+    queryFn: async () => check(await supabase.from('profiles').select('*').order('created_at', { ascending: false })) as Member[],
   })
 }
 
 export const defaultProfile: Profile = {
-  id: '',
+  id: 1,
   store_name: 'Toko Saya',
   coverage_weeks: 2,
   forecast_method: 'sma',
