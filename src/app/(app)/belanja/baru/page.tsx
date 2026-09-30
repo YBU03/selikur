@@ -1,12 +1,15 @@
 'use client'
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, ShoppingCart, Info, Wand2, Eraser } from 'lucide-react'
+import { Search, ShoppingCart, Info, Wand2, Eraser, FileText } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useCatalog, useSuppliers, useSchedules, useLists, useProfile, useSalesBuckets, defaultProfile, qk, useInvalidate } from '@/lib/queries'
 import { movingAverage } from '@/lib/forecast'
 import { nextSchedule } from '@/lib/reminders'
-import { num, rupiah, unitLabel } from '@/lib/format'
+import { num, rupiah, tgl, unitLabel } from '@/lib/format'
+import { exportListPdf } from '@/lib/exporters'
+import type { ShoppingItem, ShoppingList } from '@/lib/types'
+import { ShoppingSimCard, PdfOptionsSheet } from '@/components/ShoppingSim'
 import { AdminOnly } from '@/components/AppShell'
 import { Button, Card, Chip, EmptyState, Input, Loading, NumberInput, PageHeader, Thumb, cx } from '@/components/ui'
 import CreateListSheet from '@/components/CreateListSheet'
@@ -32,6 +35,7 @@ function BelanjaManual() {
   const [onlyLow, setOnlyLow] = useState(false)
   const [qty, setQty] = useState<Record<string, number>>({})
   const [sheet, setSheet] = useState(false)
+  const [pdf, setPdf] = useState(false)
 
   const supName = useMemo(() => new Map((suppliers ?? []).map((s) => [s.id, s.name])), [suppliers])
   const list = useMemo(
@@ -155,12 +159,64 @@ function BelanjaManual() {
       </div>
 
       {picked.length > 0 && (
-        <div className="sticky bottom-28 z-10 mt-4 lg:bottom-6">
+        <div className="mt-4">
+          <ShoppingSimCard
+            lines={picked.map(({ p, v }) => ({ product: p, variant: v, qty: qty[v.id], price: v.buy_price, supplierId: p.supplier_id }))}
+            profile={prof}
+            suppliers={suppliers}
+          />
+        </div>
+      )}
+
+      {picked.length > 0 && (
+        <div className="sticky bottom-28 z-10 mt-4 grid grid-cols-[auto_1fr] gap-2 lg:bottom-6">
+          <Button size="lg" variant="outline" className="bg-white" onClick={() => setPdf(true)} aria-label="Unduh PDF">
+            <FileText className="size-5" /> PDF
+          </Button>
           <Button block size="lg" onClick={() => setSheet(true)}>
-            <ShoppingCart className="size-5" /> Buat daftar · {picked.length} item · {num(pcs)} pcs · {rupiah(total)}
+            <ShoppingCart className="size-5" /> Buat daftar · {picked.length} item · {rupiah(total)}
           </Button>
         </div>
       )}
+
+      <PdfOptionsSheet
+        open={pdf}
+        onClose={() => setPdf(false)}
+        onExport={async (o, how) => {
+          const now = new Date().toISOString()
+          const tempList: ShoppingList = {
+            id: 'draf',
+            schedule_id: null,
+            title: `Rencana belanja ${tgl(new Date())}`,
+            status: 'draft',
+            budget: null,
+            planned_total: total,
+            actual_total: 0,
+            started_at: null,
+            completed_at: null,
+            created_at: now,
+          }
+          const tempItems: ShoppingItem[] = picked.map(({ p, v }, i) => ({
+            id: `draf-${v.id}`,
+            list_id: 'draf',
+            variant_id: v.id,
+            supplier_id: p.supplier_id,
+            custom_name: null,
+            qty_planned: qty[v.id],
+            price_planned: v.buy_price,
+            qty_actual: null,
+            price_actual: null,
+            status: 'pending',
+            note: null,
+            sort_order: i,
+          }))
+          try {
+            await exportListPdf(tempList, tempItems, products ?? [], suppliers ?? [], prof.store_name, how, { ...o, profile: prof })
+          } catch (e) {
+            toast(errMsg(e), 'error')
+          }
+        }}
+      />
 
       <CreateListSheet
         open={sheet}

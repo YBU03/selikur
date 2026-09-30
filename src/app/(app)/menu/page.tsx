@@ -1,6 +1,8 @@
 'use client'
-import { LineChart, ClipboardList, CalendarDays, BarChart3, Settings, Percent, Package, Camera, ShoppingBasket, Sparkles, Users, LogOut } from 'lucide-react'
-import { Card, LinkRow, PageHeader, SectionTitle } from '@/components/ui'
+import { LineChart, ClipboardList, CalendarDays, BarChart3, Settings, Percent, Package, Camera, ShoppingBasket, Sparkles, Users, LogOut, KeyRound } from 'lucide-react'
+import { useState } from 'react'
+import { Button, Card, Input, LinkRow, PageHeader, SectionTitle, Sheet } from '@/components/ui'
+import { useToast, errMsg } from '@/components/Toast'
 import { useRole } from '@/lib/roles'
 import { ROLE_LABEL } from '@/lib/types'
 
@@ -31,6 +33,7 @@ export default function MenuPage() {
       <Card className="p-1.5">
         {isAdmin && <LinkRow href="/pengguna" icon={Users} title="Kelola pengguna" text="Setujui akun, atur peran Super Admin / Admin / User" tone="sun" />}
         {isAdmin && <LinkRow href="/pengaturan" icon={Settings} title="Pengaturan" text="Profil toko, kategori, supplier, data" tone="ink" />}
+        <PasswordRow />
         {!isAdmin && <LogoutRow />}
       </Card>
     </div>
@@ -52,5 +55,51 @@ function LogoutRow() {
       </span>
       Keluar
     </button>
+  )
+}
+
+function PasswordRow() {
+  const [open, setOpen] = useState(false)
+  const [pw, setPw] = useState('')
+  const [pw2, setPw2] = useState('')
+  const [busy, setBusy] = useState(false)
+  const toast = useToast()
+  return (
+    <>
+      <button onClick={() => setOpen(true)} className="flex w-full items-center gap-3.5 rounded-2xl p-3 text-left transition hover:bg-ink-50">
+        <span className="flex size-11 items-center justify-center rounded-2xl bg-ink-100 text-ink-700">
+          <KeyRound className="size-5" />
+        </span>
+        <span>
+          <span className="block font-semibold text-ink-900">Ganti kata sandi</span>
+          <span className="block text-sm text-ink-500">Ubah kata sandi akun kamu</span>
+        </span>
+      </button>
+      <Sheet open={open} onClose={() => setOpen(false)} title="Ganti kata sandi">
+        <div className="space-y-3.5">
+          <Input label="Kata sandi baru" type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="min. 6 karakter" />
+          <Input label="Ulangi kata sandi baru" type="password" autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} />
+          {pw2 && pw !== pw2 && <p className="text-sm text-red-600">Kata sandi belum sama.</p>}
+          <Button
+            block
+            loading={busy}
+            disabled={pw.length < 6 || pw !== pw2}
+            onClick={async () => {
+              setBusy(true)
+              const { supabase } = await import('@/lib/supabase')
+              const { error } = await supabase.auth.updateUser({ password: pw })
+              setBusy(false)
+              if (error) return toast(errMsg(error), 'error')
+              toast('Kata sandi berhasil diganti')
+              setPw('')
+              setPw2('')
+              setOpen(false)
+            }}
+          >
+            Simpan kata sandi
+          </Button>
+        </div>
+      </Sheet>
+    </>
   )
 }

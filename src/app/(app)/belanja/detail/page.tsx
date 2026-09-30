@@ -14,6 +14,8 @@ import { exportListExcel, exportListPdf, listWhatsAppText, type Deliver } from '
 import { LIST_STATUS, type ShoppingItem, type ShoppingList } from '@/lib/types'
 import { Badge, Button, Card, Confirm, EmptyState, IconButton, Input, Loading, MoneyInput, NumberInput, PageHeader, Segmented, Select, Sheet, Thumb, cx } from '@/components/ui'
 import { useToast, errMsg } from '@/components/Toast'
+import { ShoppingSimCard, PdfOptionsSheet } from '@/components/ShoppingSim'
+import type { SimLine } from '@/lib/shoppingSim'
 import { waLink } from '@/components/QuickCreate'
 
 type Data = { list: ShoppingList; items: ShoppingItem[] }
@@ -45,6 +47,7 @@ function Detail() {
   const [menu, setMenu] = useState(false)
   const [finish, setFinish] = useState(false)
   const [swap, setSwap] = useState<ShoppingItem | null>(null)
+  const [pdf, setPdf] = useState(false)
 
   if (isPending) return <Loading />
   if (!data)
@@ -102,13 +105,30 @@ function Detail() {
 
   async function doExport(kind: 'pdf' | 'xlsx', how: Deliver) {
     setMenu(false)
+    if (kind === 'pdf') return setPdf(true)
     try {
-      if (kind === 'pdf') await exportListPdf(list, items, products ?? [], suppliers ?? [], (profile ?? defaultProfile).store_name, how)
-      else await exportListExcel(list, items, products ?? [], suppliers ?? [], how)
+      await exportListExcel(list, items, products ?? [], suppliers ?? [], how)
     } catch (e) {
       toast(errMsg(e), 'error')
     }
   }
+
+  // baris simulasi: pakai jumlah & harga aktual untuk barang terbeli, rencana untuk sisanya
+  const simLines: SimLine[] = items
+    .filter((it) => it.status !== 'unavailable' && (!done || it.status === 'bought'))
+    .map((it) => {
+      const e = it.variant_id ? idx.get(it.variant_id) : undefined
+      if (!e) return null
+      const useActual = it.status === 'bought'
+      return {
+        product: e.product,
+        variant: e.variant,
+        qty: useActual ? it.qty_actual ?? it.qty_planned : it.qty_planned,
+        price: useActual ? it.price_actual ?? it.price_planned : it.price_planned,
+        supplierId: it.supplier_id ?? e.product.supplier_id,
+      }
+    })
+    .filter(Boolean) as SimLine[]
 
   return (
     <div>
@@ -152,6 +172,19 @@ function Detail() {
           </p>
         )}
       </Card>
+
+      {isAdmin && simLines.length > 0 && (
+        <div className="mb-4">
+          <ShoppingSimCard
+            lines={simLines}
+            profile={profile ?? defaultProfile}
+            suppliers={suppliers}
+            budget={list.budget}
+            title={done ? 'Simulasi hasil belanja' : 'Simulasi belanja'}
+            defaultOpen={false}
+          />
+        </div>
+      )}
 
       {!done && (
         <Segmented
@@ -307,9 +340,8 @@ function Detail() {
           {isAdmin && !done && (
             <MenuBtn icon={Pencil} label="Ubah judul, anggaran, jadwal" onClick={() => (setMenu(false), setEditList(true))} />
           )}
-          <MenuBtn icon={FileText} label="Unduh PDF siap cetak" onClick={() => doExport('pdf', 'download')} />
+          <MenuBtn icon={FileText} label="PDF daftar belanja (foto, nama, warna, jumlah)" onClick={() => doExport('pdf', 'download')} />
           <MenuBtn icon={FileSpreadsheet} label="Unduh Excel" onClick={() => doExport('xlsx', 'download')} />
-          <MenuBtn icon={Share2} label="Bagikan PDF (WhatsApp, dll.)" onClick={() => doExport('pdf', 'share')} />
           <MenuBtn
             icon={MessageCircle}
             label="Kirim teks daftar ke WhatsApp"
@@ -378,6 +410,18 @@ function Detail() {
           await invalidate(qk.list(id), qk.lists)
           setEditList(false)
           toast('Daftar diperbarui')
+        }}
+      />
+
+      <PdfOptionsSheet
+        open={pdf}
+        onClose={() => setPdf(false)}
+        onExport={async (o, how) => {
+          try {
+            await exportListPdf(list, items, products ?? [], suppliers ?? [], (profile ?? defaultProfile).store_name, how, { ...o, profile: profile ?? defaultProfile })
+          } catch (e) {
+            toast(errMsg(e), 'error')
+          }
         }}
       />
 

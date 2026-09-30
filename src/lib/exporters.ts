@@ -1,5 +1,5 @@
 'use client'
-import type { Category, Product, ShoppingItem, ShoppingList, Supplier, Variant } from './types'
+import type { Category, Product, Profile, ShoppingItem, ShoppingList, Supplier, Variant } from './types'
 import { indexVariants, variantLabel } from './queries'
 import { photoUrl } from './supabase'
 import { rupiah, tgl, unitLabel, pct, num } from './format'
@@ -206,6 +206,19 @@ function lastY(doc: unknown) {
   return (doc as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY
 }
 
+export interface ListPdfOptions {
+  showPrice: boolean
+  showSim: boolean
+  groupBySupplier: boolean
+  /** Pengaturan toko untuk simulasi laba (potongan platform & affiliate). */
+  profile?: Profile
+}
+
+/** Teks aman untuk font standar PDF (tanpa karakter khusus yang tidak didukung). */
+function pdfText(t: string) {
+  return t.replace(/[—–]/g, '-').replace(/[“”]/g, '"').replace(/[‘’]/g, "'")
+}
+
 export async function exportListPdf(
   list: ShoppingList,
   items: ShoppingItem[],
@@ -213,15 +226,18 @@ export async function exportListPdf(
   suppliers: Supplier[],
   storeName: string,
   mode: Deliver = 'download',
+  opts: ListPdfOptions = { showPrice: true, showSim: false, groupBySupplier: true },
 ) {
   const idx = indexVariants(products)
   const sup = new Map(suppliers.map((s) => [s.id, s]))
-  const { doc, autoTable } = await pdfBase(list.title, `${storeName} · dicetak ${tgl(new Date())} · ${items.length} barang`)
+  const pcsTotal = items.reduce((s, i) => s + i.qty_planned, 0)
+  const { doc, autoTable } = await pdfBase(pdfText(list.title), pdfText(`${storeName} · dicetak ${tgl(new Date())} · ${items.length} barang · ${num(pcsTotal)} pcs`))
 
+  // kelompokkan per supplier (atau satu tabel)
   const groups = new Map<string, ShoppingItem[]>()
   for (const it of items) {
     const e = it.variant_id ? idx.get(it.variant_id) : undefined
-    const key = it.supplier_id ?? e?.product.supplier_id ?? '-'
+    const key = opts.groupBySupplier ? it.supplier_id ?? e?.product.supplier_id ?? '-' : 'all'
     groups.set(key, [...(groups.get(key) ?? []), it])
   }
   const images = new Map<string, string | null>()
@@ -233,70 +249,147 @@ export async function exportListPdf(
     }),
   )
 
+  const head = opts.showPrice
+    ? [['', 'No', 'Foto', 'Nama barang', 'Warna / varian', 'Jumlah', 'Harga/pcs', 'Subtotal', 'Harga aktual']]
+    : [['', 'No', 'Foto', 'Nama barang', 'Warna / varian', 'Jumlah', 'Catatan']]
+  type ColStyles = Record<string, { cellWidth?: number; minCellHeight?: number; halign?: 'left' | 'center' | 'right' }>
+  const columnStyles: ColStyles = opts.showPrice
+    ? {
+        0: { cellWidth: 7 },
+        1: { cellWidth: 8, halign: 'center' as const },
+        2: { cellWidth: 15, minCellHeight: 14 },
+        4: { cellWidth: 26 },
+        5: { cellWidth: 22 },
+        6: { cellWidth: 20, halign: 'right' as const },
+        7: { cellWidth: 22, halign: 'right' as const },
+        8: { cellWidth: 20 },
+      }
+    : {
+        0: { cellWidth: 8 },
+        1: { cellWidth: 9, halign: 'center' as const },
+        2: { cellWidth: 17, minCellHeight: 16 },
+        4: { cellWidth: 36 },
+        5: { cellWidth: 28 },
+        6: { cellWidth: 34 },
+      }
+
   let y = 32
+  let no = 0
   for (const [key, rows] of groups) {
-    const s = sup.get(key)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(11)
-    doc.text(s ? `${s.name}${s.location ? ` - ${s.location}` : ''}`.slice(0, 95) : 'Tanpa supplier', 12, y + 4)
+    if (opts.groupBySupplier) {
+      const s = sup.get(key)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(11)
+      doc.text(pdfText(s?.name ?? 'Tanpa supplier'), 12, y + 4)
+      const sub = [s?.location, s?.whatsapp ? `WA ${s.whatsapp}` : null].filter(Boolean).join('  ·  ')
+      if (sub) {
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(8.5)
+        doc.setTextColor(80, 90, 84)
+        doc.text(doc.splitTextToSize(pdfText(sub), 186)[0], 12, y + 9)
+        doc.setTextColor(18, 26, 22)
+        y += 5
+      }
+      y += 7
+    }
     const body = rows.map((it) => {
+      no++
       const e = it.variant_id ? idx.get(it.variant_id) : undefined
-      return [
-        '',
-        '',
-        e ? variantLabel(e.product, e.variant) : it.custom_name ?? '',
-        e ? unitLabel(it.qty_planned, e.variant.unit, e.variant.unit_size) : `${it.qty_planned} pcs`,
-        rupiah(it.price_planned),
-        rupiah(it.qty_planned * it.price_planned),
-        '',
-      ]
+      const name = pdfText(e?.product.name ?? it.custom_name ?? '')
+      const variant = pdfText(e && e.variant.name !== 'Standar' ? e.variant.name : '-')
+      const qty = e ? unitLabel(it.qty_planned, e.variant.unit, e.variant.unit_size) : `${num(it.qty_planned)} pcs`
+      return opts.showPrice
+        ? ['', String(no), '', name, variant, qty, rupiah(it.price_planned), rupiah(it.qty_planned * it.price_planned), '']
+        : ['', String(no), '', name, variant, qty, it.note ?? '']
     })
     autoTable(doc, {
-      startY: y + 7,
-      head: [['', 'Foto', 'Barang', 'Qty', 'Harga', 'Subtotal', 'Harga aktual']],
+      startY: y,
+      head,
       body,
       theme: 'grid',
       styles: { fontSize: 9, cellPadding: 2, valign: 'middle', lineColor: [221, 225, 220] },
       headStyles: { fillColor: [238, 248, 243], textColor: [11, 95, 73], fontStyle: 'bold' },
-      columnStyles: {
-        0: { cellWidth: 8 },
-        1: { cellWidth: 16, minCellHeight: 15 },
-        3: { cellWidth: 28 },
-        4: { cellWidth: 24, halign: 'right' },
-        5: { cellWidth: 26, halign: 'right' },
-        6: { cellWidth: 26 },
-      },
+      columnStyles,
       margin: { left: 12, right: 12 },
       didDrawCell: (d) => {
         if (d.section !== 'body') return
         const it = rows[d.row.index]
         if (d.column.index === 0) {
+          const cx = d.cell.x + d.cell.width / 2 - 2
+          const cy = d.cell.y + d.cell.height / 2 - 2
           doc.setDrawColor(11, 95, 73)
           doc.setLineWidth(0.4)
-          doc.rect(d.cell.x + 2, d.cell.y + d.cell.height / 2 - 2, 4, 4)
+          doc.rect(cx, cy, 4, 4)
           if (it.status === 'bought') {
-            doc.line(d.cell.x + 2.6, d.cell.y + d.cell.height / 2, d.cell.x + 3.6, d.cell.y + d.cell.height / 2 + 1.2)
-            doc.line(d.cell.x + 3.6, d.cell.y + d.cell.height / 2 + 1.2, d.cell.x + 5.4, d.cell.y + d.cell.height / 2 - 1.4)
+            doc.line(cx + 0.6, cy + 2, cx + 1.6, cy + 3.2)
+            doc.line(cx + 1.6, cy + 3.2, cx + 3.4, cy + 0.6)
           }
         }
-        if (d.column.index === 1) {
+        if (d.column.index === 2) {
           const img = images.get(it.id)
-          if (img) doc.addImage(img, 'JPEG', d.cell.x + 1.5, d.cell.y + 1.5, 13, 12)
+          const size = Math.min(d.cell.width, d.cell.height) - 3
+          if (img) doc.addImage(img, 'JPEG', d.cell.x + (d.cell.width - size) / 2, d.cell.y + 1.5, size, size)
         }
       },
     })
     y = lastY(doc) + 6
-    if (y > 260) {
+    if (y > 262) {
       doc.addPage()
       y = 16
     }
   }
+
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(11)
-  doc.text(`Estimasi total: ${rupiah(list.planned_total)}`, 12, y + 4)
-  if (list.budget) {
-    doc.setFont('helvetica', 'normal')
-    doc.text(`Anggaran: ${rupiah(list.budget)}`, 12, y + 10)
+  if (opts.showPrice) {
+    doc.text(`Estimasi total belanja: ${rupiah(list.planned_total || items.reduce((s, i) => s + i.qty_planned * i.price_planned, 0))}`, 12, y + 4)
+    if (list.budget) {
+      doc.setFont('helvetica', 'normal')
+      doc.text(`Anggaran: ${rupiah(list.budget)}`, 12, y + 10)
+      y += 6
+    }
+    y += 10
+  } else {
+    doc.text(`Total: ${items.length} barang, ${num(pcsTotal)} pcs`, 12, y + 4)
+    y += 10
+  }
+
+  if (opts.showPrice && opts.showSim && opts.profile) {
+    const { simulateShopping } = await import('./shoppingSim')
+    const lines = items
+      .map((it) => {
+        const e = it.variant_id ? idx.get(it.variant_id) : undefined
+        return e ? { product: e.product, variant: e.variant, qty: it.qty_planned, price: it.price_planned, supplierId: it.supplier_id ?? e.product.supplier_id } : null
+      })
+      .filter(Boolean) as import('./shoppingSim').SimLine[]
+    const t = simulateShopping(lines, opts.profile).total
+    const aff = Number(opts.profile.affiliate_pct) > 0
+    if (y > 240) {
+      doc.addPage()
+      y = 16
+    }
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(11)
+    doc.text('Simulasi laba (bila semua terjual di harga jual sekarang)', 12, y)
+    autoTable(doc, {
+      startY: y + 3,
+      body: [
+        ['Modal belanja', rupiah(t.modal)],
+        ['Perkiraan omzet', rupiah(t.omzet)],
+        [`Potongan platform ${num(opts.profile.platform_fee_pct, 1)}%`, `- ${rupiah(t.fee)}`],
+        ['Laba organik', `${rupiah(t.profitOrganic)} (margin ${pct(t.marginOrganic)} dari modal)`],
+        ...(aff
+          ? [
+              [`Komisi affiliate ${num(opts.profile.affiliate_pct, 1)}%`, `- ${rupiah(t.commission)}`],
+              ['Laba via affiliate', `${rupiah(t.profitAffiliate)} (margin ${pct(t.marginAffiliate)} dari modal)`],
+            ]
+          : []),
+      ],
+      theme: 'striped',
+      styles: { fontSize: 9.5, cellPadding: 2.2 },
+      columnStyles: { 0: { fontStyle: 'bold', cellWidth: 70 } },
+      margin: { left: 12, right: 12 },
+    })
   }
   await deliver(doc.output('blob'), `Selikur-${safe(list.title)}.pdf`, mode, list.title)
 }
