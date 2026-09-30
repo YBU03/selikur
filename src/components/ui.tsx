@@ -528,23 +528,61 @@ export function Confirm({
   text,
   confirmLabel = 'Hapus',
   loading,
+  requireWord = 'Hapus',
 }: {
   open: boolean
   onClose: () => void
-  onConfirm: () => void
+  onConfirm: () => void | Promise<void>
   title: string
   text?: string
   confirmLabel?: string
   loading?: boolean
+  /** Kata yang harus diketik untuk mengonfirmasi; null = tanpa ketik. */
+  requireWord?: string | null
 }) {
+  const [typed, setTyped] = useState('')
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    if (open) setTyped('')
+  }, [open])
+  const ok = !requireWord || typed.trim().toLowerCase() === requireWord.toLowerCase()
   return (
     <Sheet open={open} onClose={onClose} title={title}>
       {text && <p className="text-ink-600">{text}</p>}
+      {requireWord && (
+        <label className="mt-4 block">
+          <span className="mb-1.5 block text-sm text-ink-600">
+            Ketik <b className="text-red-600">{requireWord}</b> untuk mengonfirmasi
+          </span>
+          <input
+            autoFocus
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            placeholder={requireWord}
+            autoCapitalize="off"
+            autoComplete="off"
+            className={cx(inputCls, ok && typed ? 'border-red-400 ring-4 ring-red-50' : '')}
+          />
+        </label>
+      )}
       <div className="mt-5 grid grid-cols-2 gap-3">
         <Button variant="outline" onClick={onClose}>
           Batal
         </Button>
-        <Button variant="danger" onClick={onConfirm} loading={loading}>
+        <Button
+          variant="danger"
+          disabled={!ok}
+          loading={loading || busy}
+          className={ok ? 'bg-red-600 text-white hover:bg-red-700' : ''}
+          onClick={async () => {
+            setBusy(true)
+            try {
+              await onConfirm()
+            } finally {
+              setBusy(false)
+            }
+          }}
+        >
           {confirmLabel}
         </Button>
       </div>

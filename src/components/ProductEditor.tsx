@@ -6,9 +6,10 @@ import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, C
 import { supabase } from '@/lib/supabase'
 import { uploadPhoto, removePhotos } from '@/lib/photos'
 import { qk, useCategories, useSuppliers, useInvalidate, useSalesBuckets, useProfile, usePriceHistory, defaultProfile } from '@/lib/queries'
+import { breakdown, pricingCfg } from '@/lib/pricing'
 import { chartSeries, forecastVariant, HISTORY_WEEKS } from '@/lib/forecast'
 import { STATUS_LABEL, type Product, type ProductStatus, type Variant } from '@/lib/types'
-import { margin, num, pct, rupiah, tgl } from '@/lib/format'
+import { num, pct, rupiah, tgl } from '@/lib/format'
 import { Button, Card, Input, Label, PageHeader, SectionTitle, Segmented, Select, StockBadge, Textarea, Thumb, Confirm, Badge, cx } from './ui'
 import PhotoStrip, { toPhotoItems, type PhotoItem } from './PhotoStrip'
 import VariantSheet, { VariantFields, emptyVariant } from './VariantSheet'
@@ -33,9 +34,12 @@ export default function ProductEditor({ product }: { product: Product | null }) 
     notes: product?.notes ?? '',
     found_location: product?.found_location ?? '',
     attributes: product?.attributes ?? {},
+    platform_fee_pct: product?.platform_fee_pct ?? null,
+    affiliate_pct: product?.affiliate_pct ?? null,
   })
   const [photos, setPhotos] = useState<PhotoItem[]>(toPhotoItems(product?.photos ?? []))
-  const [first, setFirst] = useState({ ...emptyVariant })
+  const [first, setFirst] = useState<typeof emptyVariant>({ ...emptyVariant, markup_pct: Number(prof.default_markup_pct) })
+  const cfg = pricingCfg(prof, form)
   const [saving, setSaving] = useState(false)
   const [variantSheet, setVariantSheet] = useState<{ open: boolean; v: Variant | null }>({ open: false, v: null })
   const [catSheet, setCatSheet] = useState(false)
@@ -52,6 +56,8 @@ export default function ProductEditor({ product }: { product: Product | null }) 
       notes: product.notes ?? '',
       found_location: product.found_location ?? '',
       attributes: product.attributes ?? {},
+      platform_fee_pct: product.platform_fee_pct ?? null,
+      affiliate_pct: product.affiliate_pct ?? null,
     })
     setPhotos(toPhotoItems(product.photos ?? []))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -95,6 +101,8 @@ export default function ProductEditor({ product }: { product: Product | null }) 
         notes: form.notes || null,
         found_location: form.found_location || null,
         attributes: form.attributes,
+        platform_fee_pct: form.platform_fee_pct,
+        affiliate_pct: form.affiliate_pct,
         photos: paths,
       }
       if (product) {
@@ -218,6 +226,14 @@ export default function ProductEditor({ product }: { product: Product | null }) 
           </div>
         </label>
         <Textarea label="Catatan" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Kualitas, MOQ, catatan negosiasi…" />
+        <div className="rounded-3xl bg-sun-50/70 p-3.5 ring-1 ring-sun-100">
+          <p className="text-sm font-semibold text-ink-800">Potongan & komisi produk ini</p>
+          <p className="mb-3 text-xs text-ink-500">Kosongkan untuk memakai pengaturan toko ({num(prof.platform_fee_pct, 1)}% platform, {num(prof.affiliate_pct, 1)}% affiliate).</p>
+          <div className="grid grid-cols-2 gap-3">
+            <PercentInput label="Potongan platform" value={form.platform_fee_pct} placeholder={num(prof.platform_fee_pct, 1)} onChange={(n) => setForm({ ...form, platform_fee_pct: n })} />
+            <PercentInput label="Komisi affiliate" value={form.affiliate_pct} placeholder={num(prof.affiliate_pct, 1)} onChange={(n) => setForm({ ...form, affiliate_pct: n })} />
+          </div>
+        </div>
       </div>
 
       {!product && (
@@ -225,7 +241,7 @@ export default function ProductEditor({ product }: { product: Product | null }) 
           <SectionTitle>Varian pertama</SectionTitle>
           <Card className="space-y-3.5">
             <Input label="Nama varian" value={first.name} onChange={(e) => setFirst({ ...first, name: e.target.value })} placeholder="mis. Hitam, 500ml, atau Standar" />
-            <VariantFields v={first} set={(p) => setFirst({ ...first, ...p })} productName={form.name} />
+            <VariantFields v={first} set={(p) => setFirst({ ...first, ...p })} productName={form.name} cfg={cfg} />
           </Card>
           <p className="mt-2 px-1 text-xs text-ink-500">Varian lain (warna, ukuran, motif) bisa ditambah setelah produk tersimpan.</p>
         </>
@@ -251,7 +267,7 @@ export default function ProductEditor({ product }: { product: Product | null }) 
           <div className="space-y-2.5">
             {forecasts.map((f) => {
               const v = f.variant
-              const m = margin(v.buy_price, v.sell_price)
+              const b = breakdown(v.buy_price, v.sell_price, cfg)
               return (
                 <button key={v.id} onClick={() => setVariantSheet({ open: true, v })} className="block w-full text-left">
                   <Card className="flex items-center gap-3 transition active:scale-[0.99]">
@@ -262,7 +278,10 @@ export default function ProductEditor({ product }: { product: Product | null }) 
                         {product.status === 'active' && <StockBadge status={f.status} />}
                       </div>
                       <p className="mt-0.5 text-xs text-ink-500">
-                        {rupiah(v.buy_price)} → {rupiah(v.sell_price)} · <span className={cx(m != null && m < 0.15 ? 'text-sun-600' : 'text-leaf-600', 'font-semibold')}>{pct(m, 0)}</span>
+                        {rupiah(v.buy_price)} → {rupiah(v.sell_price)} · laba{' '}
+                        <span className={cx(b.profit <= 0 ? 'text-red-600' : 'text-leaf-600', 'font-semibold')}>
+                          {rupiah(b.profit)} ({pct(b.marginOnCost, 0)})
+                        </span>
                       </p>
                       <p className="text-xs text-ink-500">
                         Stok {num(v.stock)} / min {num(v.min_stock)} · {num(f.weekly, 1)}/mg{v.sku ? ` · ${v.sku}` : ''}
@@ -340,7 +359,38 @@ export default function ProductEditor({ product }: { product: Product | null }) 
 
       <NewCategorySheet open={catSheet} onClose={() => setCatSheet(false)} onCreated={(c) => setForm((f) => ({ ...f, category_id: c.id }))} />
       <SupplierSheet open={supSheet} onClose={() => setSupSheet(false)} onSaved={(s) => setForm((f) => ({ ...f, supplier_id: s.id }))} />
-      <Confirm open={confirmDel} onClose={() => setConfirmDel(false)} onConfirm={remove} title="Hapus produk?" text="Semua varian, penjualan, dan riwayat harga produk ini ikut terhapus." />
+      <Confirm open={confirmDel} onClose={() => setConfirmDel(false)} onConfirm={remove} title={`Hapus ${product?.name ?? 'produk'}?`} text="Semua varian, penjualan, dan riwayat harga produk ini ikut terhapus. Tindakan ini tidak bisa dibatalkan." />
     </div>
+  )
+}
+
+export function PercentInput({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string
+  value: number | null
+  onChange: (n: number | null) => void
+  placeholder?: string
+}) {
+  return (
+    <label className="block">
+      <Label>{label}</Label>
+      <div className="relative">
+        <input
+          inputMode="decimal"
+          value={value ?? ''}
+          placeholder={placeholder}
+          onChange={(e) => {
+            const t = e.target.value.replace(',', '.').replace(/[^\d.]/g, '')
+            onChange(t === '' ? null : Math.min(99, Number(t)))
+          }}
+          className="h-12 w-full rounded-2xl border border-ink-200 bg-white pr-9 pl-4 text-right font-semibold tabular-nums outline-none placeholder:font-normal placeholder:text-ink-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-100"
+        />
+        <span className="pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 text-sm text-ink-400">%</span>
+      </div>
+    </label>
   )
 }

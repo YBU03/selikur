@@ -3,11 +3,12 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useMemo } from 'react'
 import { differenceInCalendarDays, parseISO, startOfMonth, subMonths } from 'date-fns'
-import { Camera, CalendarClock, ChevronRight, LineChart, ClipboardList, BarChart3, Settings, TrendingUp, TrendingDown, AlertTriangle, Sparkles } from 'lucide-react'
+import { Camera, CalendarClock, ChevronRight, LineChart, ClipboardList, BarChart3, Settings, TrendingUp, TrendingDown, AlertTriangle, Sparkles, Percent } from 'lucide-react'
 import { useCatalog, useSalesBuckets, useProfile, useSchedules, useLists, defaultProfile, variantLabel } from '@/lib/queries'
 import { forecastAll } from '@/lib/forecast'
 import { nextSchedule } from '@/lib/reminders'
 import { rupiah, num, tglPanjang, pct } from '@/lib/format'
+import StarterImport from '@/components/StarterImport'
 import { Card, SectionTitle, StockBadge, Thumb, Skeleton, cx } from '@/components/ui'
 
 export default function Beranda() {
@@ -56,6 +57,12 @@ export default function Beranda() {
           <Settings className="size-5" />
         </Link>
       </header>
+
+      {!isPending && (products ?? []).length === 0 && (
+        <div className="mb-4">
+          <StarterImport />
+        </div>
+      )}
 
       {activeList && (
         <Link href={`/belanja/detail?id=${activeList.id}&mode=belanja`} className="mb-4 flex items-center gap-3 rounded-3xl bg-leaf-500 px-4 py-3 text-white shadow-lift">
@@ -201,7 +208,7 @@ export default function Beranda() {
         {[
           { href: '/penjualan', icon: ClipboardList, label: 'Input Jual', tone: 'bg-brand-50 text-brand-700' },
           { href: '/forecast', icon: LineChart, label: 'Forecast', tone: 'bg-leaf-500/10 text-leaf-600' },
-          { href: '/jadwal', icon: CalendarClock, label: 'Jadwal', tone: 'bg-sun-50 text-sun-600' },
+          { href: '/harga', icon: Percent, label: 'Harga Jual', tone: 'bg-sun-50 text-sun-600' },
           { href: '/rekap', icon: BarChart3, label: 'Rekap', tone: 'bg-ink-100 text-ink-700' },
         ].map((m) => (
           <Link key={m.href} href={m.href} className="flex flex-col items-center gap-1.5 rounded-2xl py-2 transition active:scale-95">

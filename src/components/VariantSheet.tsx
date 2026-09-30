@@ -3,10 +3,11 @@ import { useEffect, useState } from 'react'
 import { Wand2, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { compressImage, uploadPhoto, removePhotos } from '@/lib/photos'
-import { qk, useInvalidate } from '@/lib/queries'
+import { qk, useInvalidate, usePricing } from '@/lib/queries'
 import { UNITS, type Product, type Variant } from '@/lib/types'
-import { margin, pct, rupiah } from '@/lib/format'
-import { Button, Input, MoneyInput, NumberInput, Select, Sheet, Thumb, Confirm, cx } from './ui'
+import { priceFromMarkup, pricingCfg, type PricingCfg } from '@/lib/pricing'
+import { Button, Input, Label, MoneyInput, NumberInput, Select, Sheet, Thumb, Confirm, Toggle } from './ui'
+import PriceSetter from './PriceSetter'
 import { useToast, errMsg } from './Toast'
 
 export function autoSku(productName: string, variantName: string) {
@@ -22,7 +23,7 @@ export function autoSku(productName: string, variantName: string) {
   return `${init(productName) || 'PRD'}-${init(variantName) || 'STD'}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`
 }
 
-type Draft = Omit<Variant, 'id' | 'product_id'> & { id?: string }
+export type Draft = Omit<Variant, 'id' | 'product_id'> & { id?: string }
 
 export const emptyVariant: Draft = {
   name: 'Standar',
@@ -35,21 +36,40 @@ export const emptyVariant: Draft = {
   stock: 0,
   min_stock: 0,
   manual_forecast: null,
+  price_mode: 'markup',
+  markup_pct: 50,
 }
 
-export function VariantFields({ v, set, productName, hasHistory }: { v: Draft; set: (p: Partial<Draft>) => void; productName: string; hasHistory?: boolean }) {
-  const m = margin(v.buy_price, v.sell_price)
+export function VariantFields({
+  v,
+  set,
+  productName,
+  hasHistory,
+  cfg,
+}: {
+  v: Draft
+  set: (p: Partial<Draft>) => void
+  productName: string
+  hasHistory?: boolean
+  cfg: PricingCfg
+}) {
   return (
     <div className="space-y-3.5">
-      <div className="grid grid-cols-2 gap-3">
-        <MoneyInput label="Harga kulakan" value={v.buy_price} onChange={(n) => set({ buy_price: n })} />
-        <MoneyInput label="Harga jual" value={v.sell_price} onChange={(n) => set({ sell_price: n })} />
-      </div>
-      <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-2.5 text-sm">
-        <span className="text-ink-500">Margin</span>
-        <span className={cx('font-bold tabular-nums', m == null ? 'text-ink-400' : m < 0.15 ? 'text-sun-600' : 'text-leaf-600')}>
-          {m == null ? '–' : `${pct(m, 1)} · ${rupiah(v.sell_price - v.buy_price)}/pcs`}
-        </span>
+      <MoneyInput
+        label="Harga kulakan (modal / pcs)"
+        value={v.buy_price}
+        onChange={(n) =>
+          set(v.price_mode === 'markup' ? { buy_price: n, sell_price: priceFromMarkup(n, Number(v.markup_pct ?? 0), cfg) } : { buy_price: n })
+        }
+      />
+      <div>
+        <Label>Harga jual</Label>
+        <PriceSetter
+          cost={v.buy_price}
+          cfg={cfg}
+          value={{ sell_price: v.sell_price, price_mode: v.price_mode, markup_pct: v.markup_pct }}
+          onChange={(p) => set(p)}
+        />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <Select
@@ -108,14 +128,19 @@ export default function VariantSheet({
   const [photo, setPhoto] = useState<{ blob?: Blob; url?: string | null }>({})
   const [busy, setBusy] = useState(false)
   const [confirm, setConfirm] = useState(false)
+  const [applyAll, setApplyAll] = useState(false)
   const invalidate = useInvalidate()
   const toast = useToast()
+  const profile = usePricing()
+  const cfg = pricingCfg(profile, product)
 
   useEffect(() => {
     if (open) {
-      setV(variant ?? { ...emptyVariant, name: '' })
+      setV(variant ?? { ...emptyVariant, name: '', markup_pct: Number(profile.default_markup_pct) })
       setPhoto({})
+      setApplyAll(false)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, variant])
 
   async function save() {
@@ -142,11 +167,24 @@ export default function VariantSheet({
         stock: v.stock,
         min_stock: v.min_stock,
         manual_forecast: v.manual_forecast,
+        price_mode: v.price_mode,
+        markup_pct: v.price_mode === 'markup' ? v.markup_pct : null,
       }
       const res = variant ? await supabase.from('variants').update(row).eq('id', variant.id).select().single() : await supabase.from('variants').insert(row).select().single()
       if (res.error) throw res.error
       if ((!variant && v.buy_price > 0) || (variant && variant.buy_price !== v.buy_price)) {
         await supabase.from('price_history').insert({ variant_id: res.data.id, price: v.buy_price, supplier_id: product.supplier_id })
+      }
+      if (applyAll) {
+        const others = product.variants.filter((x) => x.id !== res.data.id)
+        const changed = others.filter((x) => x.buy_price !== v.buy_price)
+        const { error } = await supabase
+          .from('variants')
+          .update({ buy_price: v.buy_price, sell_price: v.sell_price, price_mode: row.price_mode, markup_pct: row.markup_pct })
+          .eq('product_id', product.id)
+        if (error) throw error
+        if (changed.length)
+          await supabase.from('price_history').insert(changed.map((x) => ({ variant_id: x.id, price: v.buy_price, supplier_id: product.supplier_id })))
       }
       await invalidate(qk.catalog, ['price-history'])
       toast('Varian tersimpan')
@@ -203,13 +241,21 @@ export default function VariantSheet({
             Hapus foto varian
           </button>
         )}
-        <VariantFields v={v} set={(p) => setV({ ...v, ...p })} productName={product.name} hasHistory />
+        <VariantFields v={v} set={(p) => setV({ ...v, ...p })} productName={product.name} hasHistory cfg={cfg} />
+        {product.variants.length > 1 && (
+          <Toggle
+            checked={applyAll}
+            onChange={setApplyAll}
+            label="Samakan harga ke semua varian"
+            text={`Harga kulak & jual diterapkan ke ${product.variants.length} varian produk ini`}
+          />
+        )}
       </div>
       <Confirm
         open={confirm}
         onClose={() => setConfirm(false)}
-        title="Hapus varian?"
-        text="Data penjualan & riwayat harga varian ini ikut terhapus."
+        title={`Hapus varian ${variant?.name ?? ''}?`}
+        text="Data penjualan & riwayat harga varian ini ikut terhapus. Tindakan ini tidak bisa dibatalkan."
         onConfirm={async () => {
           const { error } = await supabase.from('variants').delete().eq('id', variant!.id)
           if (error) return toast(errMsg(error), 'error')

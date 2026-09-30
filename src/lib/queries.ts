@@ -43,6 +43,11 @@ export const defaultProfile: Profile = {
   seasonal_factor: 1,
   seasonal_label: null,
   default_budget: null,
+  platform_fee_pct: 20,
+  affiliate_pct: 0,
+  default_markup_pct: 50,
+  fee_basis: 'price',
+  price_rounding: 0,
 }
 
 export function useCategories() {
@@ -148,4 +153,9 @@ export function indexVariants(products: Product[] | undefined) {
 
 export function variantLabel(p: { name: string }, v: { name: string }) {
   return v.name && v.name !== 'Standar' ? `${p.name} — ${v.name}` : p.name
+}
+
+export function usePricing() {
+  const { data } = useProfile()
+  return data ?? defaultProfile
 }

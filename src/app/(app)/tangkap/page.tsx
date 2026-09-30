@@ -82,6 +82,8 @@ export default function TangkapPage() {
           attributes: {},
           source: 'field',
           found_location: location || null,
+          platform_fee_pct: null,
+          affiliate_pct: null,
           created_at: new Date().toISOString(),
           _pending: true,
           variants: [
@@ -98,6 +100,8 @@ export default function TangkapPage() {
               stock: 0,
               min_stock: 0,
               manual_forecast: null,
+              price_mode: 'manual',
+              markup_pct: null,
             },
           ],
         },

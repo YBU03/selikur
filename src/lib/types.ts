@@ -11,6 +11,11 @@ export interface Profile {
   seasonal_factor: number
   seasonal_label: string | null
   default_budget: number | null
+  platform_fee_pct: number
+  affiliate_pct: number
+  default_markup_pct: number
+  fee_basis: 'price' | 'cost_margin'
+  price_rounding: number
 }
 
 export interface ExtraAttribute {
@@ -46,6 +51,8 @@ export interface Variant {
   stock: number
   min_stock: number
   manual_forecast: number | null
+  price_mode: 'manual' | 'markup'
+  markup_pct: number | null
   created_at?: string
 }
 
@@ -60,6 +67,8 @@ export interface Product {
   attributes: Record<string, string>
   source: 'upload' | 'field'
   found_location: string | null
+  platform_fee_pct: number | null
+  affiliate_pct: number | null
   created_at: string
   variants: Variant[]
   _pending?: boolean
@@ -71,6 +80,7 @@ export interface SalesRow {
   sale_date: string
   qty: number
   source: 'manual' | 'import'
+  channel: 'organik' | 'affiliate'
   note: string | null
   created_at: string
 }
@@ -143,4 +153,10 @@ export const RECURRENCE_LABEL: Record<Recurrence, string> = {
   weekly: 'Mingguan',
   biweekly: '2 Mingguan',
   monthly: 'Bulanan',
+}
+
+export const LIST_STATUS: Record<ListStatus, { label: string; tone: 'gray' | 'orange' | 'green' }> = {
+  draft: { label: 'Draf', tone: 'gray' },
+  in_progress: { label: 'Berjalan', tone: 'orange' },
+  done: { label: 'Selesai', tone: 'green' },
 }

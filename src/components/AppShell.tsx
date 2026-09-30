@@ -19,7 +19,7 @@ const tabs = [
     href: '/menu',
     label: 'Lainnya',
     icon: LayoutGrid,
-    match: (p: string) => ['/menu', '/forecast', '/penjualan', '/jadwal', '/rekap', '/pengaturan'].some((x) => p.startsWith(x)),
+    match: (p: string) => ['/menu', '/forecast', '/penjualan', '/jadwal', '/rekap', '/pengaturan', '/harga'].some((x) => p.startsWith(x)),
   },
 ]
 

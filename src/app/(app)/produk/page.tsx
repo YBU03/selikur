@@ -9,6 +9,7 @@ import { STATUS_LABEL, type ProductStatus } from '@/lib/types'
 import { num, rupiah } from '@/lib/format'
 import { Badge, Button, ButtonLink, Chip, EmptyState, Input, PageHeader, Select, Sheet, Skeleton, StockBadge, Thumb, cx } from '@/components/ui'
 import { exportCatalogExcel } from '@/lib/exporters'
+import { pricingCfg } from '@/lib/pricing'
 import { useToast } from '@/components/Toast'
 
 function Catalog() {
@@ -164,7 +165,7 @@ function Catalog() {
           block
           className="mt-4"
           onClick={async () => {
-            await exportCatalogExcel(products ?? [], categories ?? [], suppliers ?? [])
+            await exportCatalogExcel(products ?? [], categories ?? [], suppliers ?? [], (x) => pricingCfg(prof, x))
             toast('Katalog diekspor ke Excel')
           }}
         >
