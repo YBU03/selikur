@@ -4,7 +4,7 @@ Aplikasi (PWA, mobile-first) untuk penjual online: katalog produk & varian, foto
 
 ## Teknologi
 - Next.js 16 (App Router) + Tailwind CSS 4, dideploy di Vercel
-- Supabase: Postgres + RLS (data per pemilik), Auth (email / Google), Storage (foto)
+- Supabase: Postgres + RLS (data per pemilik), Auth (email), Storage (foto)
 - React Query + IndexedDB untuk cache offline, antrean tulis offline (foto lapangan & mode belanja)
 
 ## Jalankan lokal

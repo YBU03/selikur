@@ -7,17 +7,6 @@ import { supabase } from '@/lib/supabase'
 import { Button, Input, Segmented } from '@/components/ui'
 import { useToast, errMsg } from '@/components/Toast'
 
-function GoogleIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="size-5" aria-hidden>
-      <path fill="#4285F4" d="M22.6 12.2c0-.7-.1-1.4-.2-2.1H12v4h6c-.3 1.4-1 2.5-2.2 3.3v2.7h3.5c2.1-1.9 3.3-4.7 3.3-7.9Z" />
-      <path fill="#34A853" d="M12 23c3 0 5.5-1 7.3-2.7l-3.5-2.7c-1 .7-2.3 1.1-3.8 1.1-2.9 0-5.4-2-6.3-4.6H2.1v2.8A11 11 0 0 0 12 23Z" />
-      <path fill="#FBBC05" d="M5.7 14.1a6.6 6.6 0 0 1 0-4.2V7.1H2.1a11 11 0 0 0 0 9.8l3.6-2.8Z" />
-      <path fill="#EA4335" d="M12 5.4c1.6 0 3.1.6 4.2 1.7l3.1-3.1A11 11 0 0 0 2.1 7.1l3.6 2.8C6.6 7.3 9.1 5.4 12 5.4Z" />
-    </svg>
-  )
-}
-
 export default function MasukPage() {
   const router = useRouter()
   const toast = useToast()
@@ -56,11 +45,6 @@ export default function MasukPage() {
     } finally {
       setLoading(false)
     }
-  }
-
-  async function google() {
-    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${location.origin}/` } })
-    if (error) toast(/not enabled/i.test(error.message) ? 'Login Google belum diaktifkan di Supabase' : error.message, 'error')
   }
 
   return (
@@ -126,12 +110,6 @@ export default function MasukPage() {
                   {mode === 'masuk' ? 'Masuk' : 'Buat Akun'}
                 </Button>
               </form>
-              <div className="my-5 flex items-center gap-3 text-xs text-ink-400">
-                <div className="h-px flex-1 bg-ink-100" /> atau <div className="h-px flex-1 bg-ink-100" />
-              </div>
-              <Button variant="outline" block onClick={google}>
-                <GoogleIcon /> Lanjut dengan Google
-              </Button>
             </>
           )}
         </div>
