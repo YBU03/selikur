@@ -67,7 +67,7 @@ export default function MasukPage() {
                 <Mail className="size-7" />
               </div>
               <p className="text-lg font-bold">Cek email kamu</p>
-              <p className="mt-1 text-sm text-ink-500">Kami mengirim tautan konfirmasi ke {email}. Setelah dikonfirmasi, admin toko perlu menyetujui akunmu sebelum bisa melihat data.</p>
+              <p className="mt-1 text-sm text-ink-500">Kami mengirim tautan konfirmasi ke {email}. Klik tautan itu, lalu masuk. Jika kamu bukan pendaftar pertama, admin toko perlu menyetujui akunmu dulu.</p>
               <Button variant="soft" className="mt-5" onClick={() => (setSent(false), setMode('masuk'))}>
                 Kembali ke Masuk
               </Button>
