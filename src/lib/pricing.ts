@@ -1,31 +1,38 @@
 import type { Product, Profile } from './types'
 
 /**
- * Model harga jual:
- * - markup  : margin yang diinginkan, persen dari harga kulakan (mis. 50% → untung 0,5 × modal)
- * - fee     : potongan platform marketplace (persen dari harga jual)
- * - affiliate: komisi affiliate (persen dari harga jual)
+ * Model harga jual (semua persen dari HARGA JUAL, sesuai cara marketplace memotong):
+ * - markup     : keuntungan yang diinginkan, persen dari modal (mis. 50% → untung 0,5 × modal)
+ * - fee        : potongan platform marketplace
+ * - affiliate  : komisi affiliate — hanya dipotong bila penjualan lewat affiliate
  *
- * basis 'price'      → harga jual dinaikkan agar SETELAH dipotong platform + affiliate
- *                      untungnya tetap sesuai markup: jual = modal × (1+markup) / (1 − fee − aff)
- * basis 'cost_margin'→ seperti rumus di Excel simulasi: jual = modal × (1+markup) × (1 + fee + aff)
+ * basis 'price'       → jual = modal × (1 + markup) ÷ (1 − fee [− affiliate])  ← rumus yang benar
+ * basis 'cost_margin' → jual = modal × (1 + markup) × (1 + fee [+ affiliate])  ← seperti file Excel lama
+ * Komisi affiliate ikut dihitung ke harga jual hanya bila affiliateInPrice aktif;
+ * selain itu harga dihitung untuk penjualan organik dan laba via affiliate ditampilkan terpisah.
  */
 export type FeeBasis = 'price' | 'cost_margin'
 export type Rounding = 0 | 100 | 500 | 1000
+export type Channel = 'organik' | 'affiliate'
 
 export interface PricingCfg {
   feePct: number
   affiliatePct: number
+  affiliateInPrice: boolean
   basis: FeeBasis
   rounding: Rounding
 }
 
 export const MARKUP_PRESETS = [30, 40, 50, 60, 70, 80, 90, 100]
 
-export function pricingCfg(profile: Pick<Profile, 'platform_fee_pct' | 'affiliate_pct' | 'fee_basis' | 'price_rounding'>, product?: Pick<Product, 'platform_fee_pct' | 'affiliate_pct'> | null): PricingCfg {
+export function pricingCfg(
+  profile: Pick<Profile, 'platform_fee_pct' | 'affiliate_pct' | 'fee_basis' | 'price_rounding'> & { affiliate_in_price?: boolean },
+  product?: Pick<Product, 'platform_fee_pct' | 'affiliate_pct'> | null,
+): PricingCfg {
   return {
     feePct: Number(product?.platform_fee_pct ?? profile.platform_fee_pct ?? 0),
     affiliatePct: Number(product?.affiliate_pct ?? profile.affiliate_pct ?? 0),
+    affiliateInPrice: !!profile.affiliate_in_price,
     basis: profile.fee_basis ?? 'price',
     rounding: (Number(profile.price_rounding) || 0) as Rounding,
   }
@@ -36,9 +43,14 @@ export function roundPrice(n: number, r: Rounding) {
   return Math.ceil(n / r) * r
 }
 
-export function priceFromMarkup(cost: number, markupPct: number, cfg: PricingCfg, withAffiliate = true) {
+/** Persen yang dipotong dari harga jual saat menghitung harga dari markup. */
+function priceCut(cfg: PricingCfg) {
+  return (cfg.feePct + (cfg.affiliateInPrice ? cfg.affiliatePct : 0)) / 100
+}
+
+export function priceFromMarkup(cost: number, markupPct: number, cfg: PricingCfg) {
   const base = cost * (1 + markupPct / 100)
-  const cut = (cfg.feePct + (withAffiliate ? cfg.affiliatePct : 0)) / 100
+  const cut = priceCut(cfg)
   const raw = cfg.basis === 'price' ? (cut >= 1 ? base : base / (1 - cut)) : base * (1 + cut)
   return roundPrice(raw, cfg.rounding)
 }
@@ -46,38 +58,51 @@ export function priceFromMarkup(cost: number, markupPct: number, cfg: PricingCfg
 export interface Breakdown {
   sell: number
   cost: number
+  /** Potongan platform. */
   fee: number
+  /** Komisi affiliate yang dipotong pada kanal ini (0 untuk organik). */
   affiliate: number
+  /** Uang diterima pada kanal ini. */
   net: number
+  /** Laba bersih pada kanal ini. */
   profit: number
-  profitNoAffiliate: number
   marginOnCost: number | null
   marginOnSell: number | null
+  /** Selalu diisi: komisi, laba & margin bila terjual lewat affiliate. */
+  commission: number
+  profitOrganic: number
+  profitAffiliate: number
+  marginAffiliate: number | null
 }
 
-/** Rincian nyata dari harga jual: potongan & komisi selalu dihitung dari harga jual. */
-export function breakdown(cost: number, sell: number, cfg: PricingCfg): Breakdown {
+/** Rincian nyata dari harga jual. Potongan platform & komisi selalu dihitung dari harga jual. */
+export function breakdown(cost: number, sell: number, cfg: PricingCfg, channel: Channel = 'organik'): Breakdown {
   const fee = (sell * cfg.feePct) / 100
-  const affiliate = (sell * cfg.affiliatePct) / 100
-  const net = sell - fee - affiliate
-  const profit = net - cost
+  const commission = (sell * cfg.affiliatePct) / 100
+  const profitOrganic = sell - fee - cost
+  const profitAffiliate = profitOrganic - commission
+  const affiliate = channel === 'affiliate' ? commission : 0
+  const profit = channel === 'affiliate' ? profitAffiliate : profitOrganic
   return {
     sell,
     cost,
     fee,
     affiliate,
-    net,
+    net: sell - fee - affiliate,
     profit,
-    profitNoAffiliate: profit + affiliate,
     marginOnCost: cost > 0 ? profit / cost : null,
     marginOnSell: sell > 0 ? profit / sell : null,
+    commission,
+    profitOrganic,
+    profitAffiliate,
+    marginAffiliate: cost > 0 ? profitAffiliate / cost : null,
   }
 }
 
 /** Markup (persen dari modal) yang tersirat dari harga jual, dengan basis yang sama. */
 export function impliedMarkup(cost: number, sell: number, cfg: PricingCfg) {
   if (!cost) return null
-  const cut = (cfg.feePct + cfg.affiliatePct) / 100
+  const cut = priceCut(cfg)
   const base = cfg.basis === 'price' ? sell * (1 - cut) : sell / (1 + cut)
   return (base / cost - 1) * 100
 }
@@ -197,6 +222,10 @@ export function recommend(cost: number, current: number, cfg: PricingCfg, veloci
   else if (status === 'premium') message = `Harga sekarang di atas ${sim.safeMax}%. Boleh dipertahankan kalau tetap laku & bersaing.`
   else if (fits) message = 'Harga sekarang sudah pas dengan saran.'
   else message = current > price ? 'Harga sekarang aman dan lebih tinggi dari saran.' : 'Harga sekarang aman; ada ruang naik ke harga saran.'
+  if (cfg.affiliatePct > 0 && current > 0) {
+    const a = breakdown(cost, current, cfg).profitAffiliate
+    if (a <= 0) message += ` Lewat affiliate ${cfg.affiliatePct}% harga sekarang rugi — naikkan harga atau batasi affiliate.`
+  }
   return { price, markup: Math.round((b.marginOnCost ?? 0) * 100), target, velocity, status, fits, message }
 }
 
@@ -226,28 +255,38 @@ export const PROMO_INFO: Record<PromoType, { label: string; range: [number, numb
 }
 
 export interface PromoResult {
-  /** Diskon maksimal agar laba masih ≥ batas minimum promo. */
+  /** Diskon maksimal agar laba organik masih ≥ batas minimum promo. */
   safe: number
-  /** Diskon maksimal sebelum rugi (impas). */
+  /** Diskon maksimal sebelum rugi (impas), penjualan organik. */
   breakEven: number
+  /** Sama seperti di atas, bila terjual lewat affiliate. */
+  safeAffiliate: number
+  breakEvenAffiliate: number
   /** Diskon yang disarankan untuk jenis promo ini. */
   suggested: number
   ok: boolean
   reason: string
 }
 
-/** Laba setelah diskon; potongan platform/affiliate + biaya program promo dihitung dari harga setelah diskon. */
-export function promoBreakdown(cost: number, price: number, discountPct: number, cfg: PricingCfg, extraFeePct = 0) {
+/** Laba setelah diskon; potongan platform, biaya program promo, dan komisi dihitung dari harga setelah diskon. */
+export function promoBreakdown(cost: number, price: number, discountPct: number, cfg: PricingCfg, extraFeePct = 0, channel: Channel = 'organik') {
   const sell = price * (1 - discountPct / 100)
-  return breakdown(cost, sell, { ...cfg, feePct: cfg.feePct + extraFeePct })
+  return breakdown(cost, sell, { ...cfg, feePct: cfg.feePct + extraFeePct }, channel)
 }
 
 export function analyzePromo(cost: number, price: number, cfg: PricingCfg, type: PromoType, minMarginPct: number, extraFeePct = 0): PromoResult {
-  const cut = (cfg.feePct + cfg.affiliatePct + extraFeePct) / 100
-  const netFull = price * (1 - cut)
-  const dFor = (profit: number) => (netFull > 0 ? Math.max(0, (1 - (cost + profit) / netFull) * 100) : 0)
-  const safe = Math.floor(dFor((cost * minMarginPct) / 100))
-  const breakEven = Math.floor(dFor(0))
+  // diskon d agar laba = target:  price·(1−d)·(1−cut) − modal = target
+  const dFor = (profit: number, cut: number) => {
+    const netFull = price * (1 - cut)
+    return netFull > 0 ? Math.max(0, (1 - (cost + profit) / netFull) * 100) : 0
+  }
+  const cutOrg = (cfg.feePct + extraFeePct) / 100
+  const cutAff = cutOrg + cfg.affiliatePct / 100
+  const minProfit = (cost * minMarginPct) / 100
+  const safe = Math.floor(dFor(minProfit, cutOrg))
+  const breakEven = Math.floor(dFor(0, cutOrg))
+  const safeAffiliate = Math.floor(dFor(minProfit, cutAff))
+  const breakEvenAffiliate = Math.floor(dFor(0, cutAff))
   const [lo] = PROMO_INFO[type].range
   const { label, ideal } = PROMO_INFO[type]
   // titik ideal per jenis promo; turun ke kelipatan 5 terdekat bila margin tidak cukup
@@ -269,5 +308,13 @@ export function analyzePromo(cost: number, price: number, cfg: PricingCfg, type:
         ? `Diskon ${suggested}% sudah cukup menarik untuk ${label} dan laba masih di atas ${minMarginPct}% modal. Masih aman sampai ${safe}%, di atas ${breakEven}% mulai rugi.`
         : `Diskon ${suggested}% adalah yang terbesar sebelum laba turun di bawah ${minMarginPct}% modal (batas aman ${safe}%, impas di ${breakEven}%).`
   }
-  return { safe, breakEven, suggested: Math.max(0, suggested), ok, reason }
+  if (cfg.affiliatePct > 0 && price && cost) {
+    reason +=
+      suggested > breakEvenAffiliate
+        ? ` Hati-hati: kalau terjual lewat affiliate (${cfg.affiliatePct}%), diskon ${suggested}% sudah rugi — impasnya di ${breakEvenAffiliate}%.`
+        : suggested > safeAffiliate
+          ? ` Lewat affiliate (${cfg.affiliatePct}%) labanya tipis; aman sampai ${safeAffiliate}%.`
+          : ` Lewat affiliate (${cfg.affiliatePct}%) masih aman sampai ${safeAffiliate}%.`
+  }
+  return { safe, breakEven, safeAffiliate, breakEvenAffiliate, suggested: Math.max(0, suggested), ok, reason }
 }

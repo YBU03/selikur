@@ -3,7 +3,7 @@ import { useRole } from '@/lib/roles'
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ShoppingBasket, Plus, LineChart, ChevronRight, CheckCircle2, CalendarDays } from 'lucide-react'
+import { ShoppingBasket, Plus, LineChart, ChevronRight, CheckCircle2, CalendarDays, Hand } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useLists, useSchedules, useProfile, defaultProfile, qk, useInvalidate } from '@/lib/queries'
 import { rupiah, tgl } from '@/lib/format'
@@ -39,16 +39,30 @@ export default function BelanjaPage() {
           )
         }
       />
-      <Link href="/forecast" className="mb-4 flex items-center gap-3 rounded-3xl bg-brand-50 p-4 ring-1 ring-brand-100">
-        <span className="flex size-11 items-center justify-center rounded-2xl bg-brand-700 text-white">
-          <LineChart className="size-5" />
-        </span>
-        <span className="flex-1">
-          <span className="block font-semibold text-brand-900">Buat otomatis dari forecast</span>
-          <span className="block text-sm text-brand-700">Varian Kritis & Perlu Kulak langsung masuk daftar</span>
-        </span>
-        <ChevronRight className="size-5 text-brand-700" />
-      </Link>
+      {isAdmin && (
+        <div className="mb-4 grid gap-3 lg:grid-cols-2">
+          <Link href="/forecast" className="flex items-center gap-3 rounded-3xl bg-brand-50 p-4 ring-1 ring-brand-100">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-brand-700 text-white">
+              <LineChart className="size-5" />
+            </span>
+            <span className="flex-1">
+              <span className="block font-semibold text-brand-900">Otomatis dari data penjualan</span>
+              <span className="block text-sm text-brand-700">Forecast: varian Kritis & Perlu Kulak langsung masuk daftar</span>
+            </span>
+            <ChevronRight className="size-5 text-brand-700" />
+          </Link>
+          <Link href="/belanja/baru" className="flex items-center gap-3 rounded-3xl bg-sun-50 p-4 ring-1 ring-sun-100">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-sun-500 text-white">
+              <Hand className="size-5" />
+            </span>
+            <span className="flex-1">
+              <span className="block font-semibold text-ink-900">Manual, pilih sendiri</span>
+              <span className="block text-sm text-sun-700">Tanpa data penjualan — misal baca langsung dari TikTok/marketplace</span>
+            </span>
+            <ChevronRight className="size-5 text-sun-700" />
+          </Link>
+        </div>
+      )}
 
       <Segmented
         value={tab}
@@ -59,7 +73,7 @@ export default function BelanjaPage() {
         ]}
       />
 
-      <div className="mt-4 grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+      <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
         {isPending && Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-3xl" />)}
         {!isPending && shown.length === 0 && (
           <EmptyState

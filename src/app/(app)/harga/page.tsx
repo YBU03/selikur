@@ -40,6 +40,7 @@ interface Row {
   rec: Recommendation
   mixed: boolean
   sim: SimCfg
+  no: number
 }
 
 const PAGE = 3
@@ -82,15 +83,17 @@ function SimTable({
   onPick?: (m: number) => void
 }) {
   const near = current ? nearestStep(cost, current, cfg, steps) : null
+  const aff = cfg.affiliatePct > 0
   return (
     <div className="-mx-1 overflow-x-auto">
-      <table className="w-full min-w-[20rem] text-[13px]">
+      <table className="w-full text-[13px]">
         <thead>
           <tr className="text-left text-[11px] text-ink-500 uppercase">
             <th className="px-1.5 py-1.5 font-semibold">Margin</th>
             <th className="px-1.5 py-1.5 text-right font-semibold">Harga jual</th>
-            <th className="px-1.5 py-1.5 text-right font-semibold">Potongan</th>
-            <th className="px-1.5 py-1.5 text-right font-semibold">Laba/pcs</th>
+            <th className="hidden px-1.5 py-1.5 text-right font-semibold sm:table-cell">Potongan</th>
+            <th className="px-1.5 py-1.5 text-right font-semibold">{aff ? 'Laba organik' : 'Laba/pcs'}</th>
+            {aff && <th className="px-1.5 py-1.5 text-right font-semibold text-sun-700">Via affiliate {num(cfg.affiliatePct, 1)}%</th>}
           </tr>
         </thead>
         <tbody>
@@ -106,8 +109,8 @@ function SimTable({
                 onClick={() => onPick?.(m)}
                 className={cx('border-t border-ink-100', onPick && 'cursor-pointer active:bg-ink-50', on ? 'bg-brand-50' : isRec ? 'bg-leaf-500/5' : '')}
               >
-                <td className="px-1.5 py-2 font-semibold whitespace-nowrap">
-                  <span className="inline-flex items-center gap-1">
+                <td className="px-1.5 py-2 font-semibold">
+                  <span className="flex max-w-[4.5rem] flex-wrap items-center gap-1 sm:max-w-none sm:flex-nowrap sm:whitespace-nowrap">
                     {on && <Check className="size-3.5 text-brand-700" />}
                     {m}%
                     {near === m && <span className="rounded bg-ink-800 px-1 text-[9px] font-bold text-white uppercase">sekarang</span>}
@@ -115,8 +118,9 @@ function SimTable({
                   </span>
                 </td>
                 <td className="px-1.5 py-2 text-right font-bold whitespace-nowrap tabular-nums">{rupiah(sell)}</td>
-                <td className="px-1.5 py-2 text-right whitespace-nowrap text-red-600 tabular-nums">{rupiah(b.fee + b.affiliate)}</td>
+                <td className="hidden px-1.5 py-2 text-right whitespace-nowrap text-red-600 tabular-nums sm:table-cell">{rupiah(b.fee)}</td>
                 <td className={cx('px-1.5 py-2 text-right font-semibold whitespace-nowrap tabular-nums', b.profit > 0 ? 'text-leaf-600' : 'text-red-600')}>{rupiah(b.profit)}</td>
+                {aff && <AffCell b={b} />}
               </tr>
             )
           })}
@@ -128,6 +132,7 @@ function SimTable({
 
 function CurrentRow({ cost, current, cfg }: { cost: number; current: number; cfg: PricingCfg }) {
   const b = breakdown(cost, current, cfg)
+  const aff = cfg.affiliatePct > 0
   const im = impliedMarkup(cost, current, cfg)
   return (
     <tr className="border-t border-ink-100 bg-ink-800 text-white">
@@ -135,9 +140,23 @@ function CurrentRow({ cost, current, cfg }: { cost: number; current: number; cfg
         Sekarang <span className="text-[11px] font-normal text-white/70">{im != null ? `${num(Math.max(im, -99), 0)}%` : ''}</span>
       </td>
       <td className="px-1.5 py-2 text-right font-bold whitespace-nowrap tabular-nums">{rupiah(current)}</td>
-      <td className="px-1.5 py-2 text-right whitespace-nowrap text-red-300 tabular-nums">{rupiah(b.fee + b.affiliate)}</td>
-      <td className={cx('rounded-r-xl px-1.5 py-2 text-right font-semibold whitespace-nowrap tabular-nums', b.profit > 0 ? 'text-leaf-400' : 'text-red-300')}>{rupiah(b.profit)}</td>
+      <td className="hidden px-1.5 py-2 text-right whitespace-nowrap text-red-300 tabular-nums sm:table-cell">{rupiah(b.fee)}</td>
+      <td className={cx('px-1.5 py-2 text-right font-semibold whitespace-nowrap tabular-nums', !aff && 'rounded-r-xl', b.profit > 0 ? 'text-leaf-400' : 'text-red-300')}>{rupiah(b.profit)}</td>
+      {aff && (
+        <td className={cx('rounded-r-xl px-1.5 py-2 text-right font-semibold whitespace-nowrap tabular-nums', b.profitAffiliate > 0 ? 'text-sun-300' : 'text-red-300')}>
+          {rupiah(b.profitAffiliate)}
+        </td>
+      )}
     </tr>
+  )
+}
+
+/** Sel laba bila terjual lewat affiliate, beserta margin dari modal. */
+function AffCell({ b }: { b: ReturnType<typeof breakdown> }) {
+  return (
+    <td className={cx('px-1.5 py-2 text-right whitespace-nowrap tabular-nums', b.profitAffiliate > 0 ? 'text-sun-700' : 'text-red-600')}>
+      <b>{rupiah(b.profitAffiliate)}</b> <span className="hidden text-[10px] opacity-75 sm:inline">{pct(b.marginAffiliate)}</span>
+    </td>
   )
 }
 
@@ -155,6 +174,7 @@ function Diff({ from, to }: { from: number; to: number }) {
 }
 
 function ProductSimCard({ r, onApply, onOpen }: { r: Row; onApply: () => void; onOpen: () => void }) {
+  const aff = r.cfg.affiliatePct > 0
   const now = breakdown(r.cost, r.current, r.cfg)
   const sar = breakdown(r.cost, r.rec.price, r.cfg)
   return (
@@ -162,7 +182,9 @@ function ProductSimCard({ r, onApply, onOpen }: { r: Row; onApply: () => void; o
       <div className="flex items-start gap-3 p-4 pb-3">
         <Thumb path={r.p.photos[0]} size={52} />
         <div className="min-w-0 flex-1">
-          <p className="line-clamp-2 leading-snug font-semibold">{r.p.name}</p>
+          <p className="line-clamp-2 leading-snug font-semibold">
+            <span className="text-ink-400">{r.no}.</span> {r.p.name}
+          </p>
           <div className="mt-1 flex flex-wrap gap-1.5">
             {r.current > 0 && <StatusBadge s={r.rec.status} />}
             <Badge tone="gray">{VELOCITY_INFO[r.rec.velocity].label}{r.weekly > 0 ? ` · ${num(r.weekly, 1)}/mg` : ''}</Badge>
@@ -179,9 +201,16 @@ function ProductSimCard({ r, onApply, onOpen }: { r: Row; onApply: () => void; o
           <p className="text-[11px] text-ink-500">Harga sekarang</p>
           <p className="font-bold tabular-nums">{r.current ? rupiah(r.current) : '–'}</p>
           {r.current > 0 && (
-            <p className={cx('text-[11px] font-semibold', now.profit > 0 ? 'text-leaf-600' : 'text-red-600')}>
-              laba {rupiah(now.profit)} · {pct(now.marginOnCost)}
-            </p>
+            <>
+              <p className={cx('text-[11px] font-semibold', now.profit > 0 ? 'text-leaf-600' : 'text-red-600')}>
+                laba {rupiah(now.profit)} · {pct(now.marginOnCost)}
+              </p>
+              {aff && (
+                <p className={cx('text-[11px] font-semibold', now.profitAffiliate > 0 ? 'text-sun-700' : 'text-red-600')}>
+                  via affiliate {rupiah(now.profitAffiliate)} · {pct(now.marginAffiliate)}
+                </p>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -198,6 +227,11 @@ function ProductSimCard({ r, onApply, onOpen }: { r: Row; onApply: () => void; o
             <p className="text-xs text-ink-600">
               laba {rupiah(sar.profit)}/pcs · margin {pct(sar.marginOnCost)} <Diff from={r.current} to={r.rec.price} />
             </p>
+            {aff && (
+              <p className="text-xs text-sun-700">
+                via affiliate: laba {rupiah(sar.profitAffiliate)} · margin {pct(sar.marginAffiliate)}
+              </p>
+            )}
           </div>
         </div>
         <p className="mt-2 text-xs text-ink-600">
@@ -222,7 +256,7 @@ function Matrix({ rows, onOpen, steps }: { rows: Row[]; onOpen: (r: Row) => void
       <table className="min-w-max border-separate border-spacing-0 text-sm">
         <thead>
           <tr className="text-[11px] text-ink-500 uppercase">
-            <th className="sticky left-0 z-10 rounded-tl-2xl bg-ink-100 px-3 py-2 text-left font-semibold">Produk</th>
+            <th className="sticky left-0 z-10 rounded-tl-2xl bg-ink-100 px-3 py-2 text-left font-semibold">No · Produk</th>
             <th className="bg-ink-100 px-3 py-2 text-right font-semibold">Modal</th>
             <th className="bg-ink-100 px-3 py-2 text-right font-semibold">Sekarang</th>
             {steps.map((m) => (
@@ -239,10 +273,14 @@ function Matrix({ rows, onOpen, steps }: { rows: Row[]; onOpen: (r: Row) => void
             const now = breakdown(r.cost, r.current, r.cfg)
             const sar = breakdown(r.cost, r.rec.price, r.cfg)
             const bg = i % 2 ? 'bg-ink-50' : 'bg-white'
+            const aff = r.cfg.affiliatePct > 0
             return (
               <tr key={r.p.id} onClick={() => onOpen(r)} className="cursor-pointer">
                 <td className={cx('sticky left-0 z-10 max-w-[10rem] border-b border-ink-100 px-3 py-2', bg)}>
-                  <p className="truncate font-semibold">{r.p.name}</p>
+                  <p className="truncate font-semibold">
+                    <span className="mr-1 text-ink-400">{r.no}.</span>
+                    {r.p.name}
+                  </p>
                   <div className="mt-0.5 flex gap-1">
                     {r.current > 0 && <StatusBadge s={r.rec.status} />}
                   </div>
@@ -251,6 +289,7 @@ function Matrix({ rows, onOpen, steps }: { rows: Row[]; onOpen: (r: Row) => void
                 <td className={cx('border-b border-ink-100 px-3 py-2 text-right tabular-nums', bg)}>
                   <b>{r.current ? rupiah(r.current) : '–'}</b>
                   {r.current > 0 && <p className={cx('text-[11px]', now.profit > 0 ? 'text-leaf-600' : 'text-red-600')}>{rupiah(now.profit)}</p>}
+                  {r.current > 0 && aff && <p className={cx('text-[11px]', now.profitAffiliate > 0 ? 'text-sun-700' : 'text-red-600')}>{rupiah(now.profitAffiliate)}</p>}
                 </td>
                 {steps.map((m) => {
                   const s = priceFromMarkup(r.cost, m, r.cfg)
@@ -259,12 +298,14 @@ function Matrix({ rows, onOpen, steps }: { rows: Row[]; onOpen: (r: Row) => void
                     <td key={m} className={cx('border-b border-ink-100 px-3 py-2 text-right tabular-nums', near === m ? 'bg-ink-800 text-white' : bg)}>
                       <b>{rupiah(s)}</b>
                       <p className={cx('text-[11px]', near === m ? 'text-white/75' : 'text-ink-500')}>{rupiah(b.profit)}</p>
+                      {aff && <p className={cx('text-[11px]', near === m ? 'text-sun-300' : b.profitAffiliate > 0 ? 'text-sun-700' : 'text-red-600')}>{rupiah(b.profitAffiliate)}</p>}
                     </td>
                   )
                 })}
                 <td className="border-b border-ink-100 bg-leaf-500/10 px-3 py-2 text-right tabular-nums">
                   <b className="text-brand-900">{rupiah(r.rec.price)}</b>
                   <p className="text-[11px] text-leaf-600">{rupiah(sar.profit)}</p>
+                  {aff && <p className="text-[11px] text-sun-700">{rupiah(sar.profitAffiliate)}</p>}
                 </td>
               </tr>
             )
@@ -272,7 +313,7 @@ function Matrix({ rows, onOpen, steps }: { rows: Row[]; onOpen: (r: Row) => void
         </tbody>
       </table>
       <p className="mt-2 text-xs text-ink-500">
-        Angka kecil = laba bersih/pcs. Kotak gelap = posisi harga sekarang. Geser ke samping untuk melihat semua kolom, ketuk baris untuk mengatur harga.
+        Angka kecil hijau/abu = laba bersih organik per pcs, oranye = laba bila terjual lewat affiliate. Kotak gelap = posisi harga sekarang. Geser ke samping untuk melihat semua kolom, ketuk baris untuk mengatur harga.
       </p>
     </div>
   )
@@ -284,43 +325,54 @@ async function exportSimulation(rows: Row[], steps: number[]) {
   const wb = new ExcelJS.Workbook()
   const ws = wb.addWorksheet('Simulasi Harga')
   ws.columns = [
+    { header: 'No', key: 'no', width: 5 },
     { header: 'Produk', key: 'name', width: 38 },
     { header: 'Modal', key: 'cost', width: 12 },
     { header: 'Harga Sekarang', key: 'cur', width: 15 },
     { header: 'Laba Sekarang', key: 'curp', width: 14 },
+    { header: 'Laba Sekarang via Affiliate', key: 'curpa', width: 16 },
     ...steps.flatMap((m) => [
       { header: `Harga ${m}%`, key: `h${m}`, width: 13 },
       { header: `Laba ${m}%`, key: `l${m}`, width: 12 },
+      { header: `Laba ${m}% Affiliate`, key: `a${m}`, width: 14 },
     ]),
     { header: 'Saran', key: 'rec', width: 13 },
     { header: 'Laba Saran', key: 'recp', width: 12 },
+    { header: 'Laba Saran Affiliate', key: 'recpa', width: 14 },
     { header: 'Status', key: 'status', width: 14 },
     { header: 'Kecepatan Jual', key: 'vel', width: 15 },
   ]
   for (const r of rows) {
+    const now = breakdown(r.cost, r.current, r.cfg)
+    const sar = breakdown(r.cost, r.rec.price, r.cfg)
     const row: Record<string, string | number> = {
+      no: r.no,
       name: r.p.name,
       cost: r.cost,
       cur: r.current,
-      curp: breakdown(r.cost, r.current, r.cfg).profit,
+      curp: now.profitOrganic,
+      curpa: now.profitAffiliate,
       rec: r.rec.price,
-      recp: breakdown(r.cost, r.rec.price, r.cfg).profit,
+      recp: sar.profitOrganic,
+      recpa: sar.profitAffiliate,
       status: PRICE_STATUS_INFO[r.rec.status].label,
       vel: VELOCITY_INFO[r.rec.velocity].label,
     }
     for (const m of steps) {
       const s = priceFromMarkup(r.cost, m, r.cfg)
       row[`h${m}`] = s
-      row[`l${m}`] = breakdown(r.cost, s, r.cfg).profit
+      const b = breakdown(r.cost, s, r.cfg)
+      row[`l${m}`] = b.profitOrganic
+      row[`a${m}`] = b.profitAffiliate
     }
     ws.addRow(row)
   }
   const head = ws.getRow(1)
   head.font = { bold: true, color: { argb: 'FFFFFFFF' } }
   head.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0B5F49' } }
-  ws.views = [{ state: 'frozen', xSplit: 1, ySplit: 1 }]
+  ws.views = [{ state: 'frozen', xSplit: 2, ySplit: 1 }]
   ws.columns.forEach((c, i) => {
-    if (i > 0 && i < ws.columns.length - 2) c.numFmt = '"Rp" #,##0'
+    if (i > 1 && i < ws.columns.length - 2) c.numFmt = '"Rp" #,##0'
   })
   const buf = await wb.xlsx.writeBuffer()
   await deliver(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'Selikur-Simulasi-Harga.xlsx')
@@ -348,7 +400,9 @@ function HargaPageInner() {
   const [page] = useState(() => (typeof window !== 'undefined' && window.innerWidth >= 1024 ? 6 : PAGE))
 
   const all = useMemo<Row[]>(() => {
-    const list = (products ?? []).filter((p) => p.variants.length && p.status !== 'inactive' && !p._pending)
+    const list = (products ?? [])
+      .filter((p) => p.variants.length && p.status !== 'inactive' && !p._pending)
+      .sort((a, b) => a.name.localeCompare(b.name, 'id'))
     const weeklyOf = (p: Product) => p.variants.reduce((s, v) => s + movingAverage(buckets?.get(v.id) ?? [], profile.forecast_method), 0)
     const weeklies = list.map(weeklyOf)
     const withData = weeklies.filter((w) => w > 0)
@@ -366,6 +420,7 @@ function HargaPageInner() {
         weekly: weeklies[i],
         rec: recommend(v.buy_price, v.sell_price, c, vel, sim),
         sim,
+        no: i + 1,
         mixed: p.variants.some((x) => x.sell_price !== v.sell_price || x.buy_price !== v.buy_price),
       }
     })
@@ -384,10 +439,7 @@ function HargaPageInner() {
   const rows = all
     .filter((r) => (filter === 'all' ? true : filter === 'ubah' ? !r.rec.fits : r.rec.status === filter))
     .filter((r) => !q || r.p.name.toLowerCase().includes(q.toLowerCase()))
-    .sort((a, b) => {
-      const rank: Record<PriceStatus, number> = { rugi: 0, murah: 1, aman: 2, premium: 3 }
-      return rank[a.rec.status] - rank[b.rec.status] || a.p.name.localeCompare(b.p.name)
-    })
+    .sort((a, b) => a.no - b.no)
 
   async function applyRecs(target: Row[]) {
     try {
@@ -462,7 +514,7 @@ function HargaPageInner() {
             <b>
               {sim.safeMin}–{sim.safeMax}% dari modal
             </b>{' '}
-            (setelah potongan platform{cfg.affiliatePct ? ' & affiliate' : ''}). Produk <b>laris</b> disarankan ±{sim.targets.laris}%, <b>normal</b> ±{sim.targets.normal}%,{' '}
+            (setelah potongan platform{cfg.affiliateInPrice && cfg.affiliatePct ? ' & affiliate' : ''}){cfg.affiliatePct > 0 && !cfg.affiliateInPrice ? `. Kolom oranye = laba bila terjual lewat affiliate ${cfg.affiliatePct}%` : ''}. Produk <b>laris</b> disarankan ±{sim.targets.laris}%, <b>normal</b> ±{sim.targets.normal}%,{' '}
             <b>lambat</b> ±{sim.targets.lambat}%, lalu dibulatkan ke harga cantik (…900).{' '}
             <button onClick={() => setSettings(true)} className="font-semibold text-brand-700 underline">
               Ubah persen
@@ -514,7 +566,7 @@ function HargaPageInner() {
 
         {view === 'kartu' ? (
           <>
-          <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
             {rows.slice(0, limit).map((r) => (
               <ProductSimCard key={r.p.id} r={r} onOpen={() => setPick(r.p)} onApply={() => setConfirm([r])} />
             ))}

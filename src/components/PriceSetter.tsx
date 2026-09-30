@@ -10,37 +10,41 @@ export interface PriceValue {
   markup_pct: number | null
 }
 
-export function PriceBreakdown({ cost, sell, cfg, compact }: { cost: number; sell: number; cfg: PricingCfg; compact?: boolean }) {
+/** Rincian harga: kolom penjualan organik dan (bila ada komisi) kolom lewat affiliate. */
+export function PriceBreakdown({ cost, sell, cfg }: { cost: number; sell: number; cfg: PricingCfg; compact?: boolean }) {
   const b = breakdown(cost, sell, cfg)
-  const good = b.profit > 0
-  const Row = ({ label, value, tone, strong }: { label: React.ReactNode; value: string; tone?: string; strong?: boolean }) => (
-    <div className={cx('flex items-center justify-between', strong ? 'py-1 text-[15px] font-bold' : 'text-sm')}>
-      <span className={strong ? 'text-ink-900' : 'text-ink-500'}>{label}</span>
-      <span className={cx('tabular-nums', tone ?? (strong ? 'text-ink-900' : 'text-ink-700'))}>{value}</span>
-    </div>
+  const aff = cfg.affiliatePct > 0
+  const tone = (n: number) => (n > 0 ? 'text-leaf-600' : 'text-red-600')
+  const Row = ({ label, org, affv, toneOrg, toneAff, strong }: { label: React.ReactNode; org: string; affv?: string; toneOrg?: string; toneAff?: string; strong?: boolean }) => (
+    <tr className={cx(strong && 'border-t border-ink-200 text-[15px] font-bold')}>
+      <td className={cx('py-1 pr-2', strong ? 'pt-2 text-ink-900' : 'text-ink-500')}>{label}</td>
+      <td className={cx('py-1 text-right tabular-nums', strong && 'pt-2', toneOrg ?? (strong ? 'text-ink-900' : 'text-ink-700'))}>{org}</td>
+      {aff && <td className={cx('py-1 pl-3 text-right tabular-nums', strong && 'pt-2', toneAff ?? (strong ? 'text-ink-900' : 'text-ink-700'))}>{affv ?? org}</td>}
+    </tr>
   )
   return (
-    <div className="space-y-1.5 rounded-2xl bg-ink-50 p-3.5 ring-1 ring-ink-100">
-      <Row label="Harga jual" value={rupiah(b.sell)} />
-      <Row label={`Potongan platform ${num(cfg.feePct, 1)}%`} value={`− ${rupiah(b.fee)}`} tone="text-red-600" />
-      {cfg.affiliatePct > 0 && <Row label={`Komisi affiliate ${num(cfg.affiliatePct, 1)}%`} value={`− ${rupiah(b.affiliate)}`} tone="text-red-600" />}
-      {!compact && <Row label="Uang diterima" value={rupiah(b.net)} />}
-      <Row label="Modal (harga kulakan)" value={`− ${rupiah(b.cost)}`} />
-      <div className="my-1 h-px bg-ink-200" />
-      <Row label="Laba bersih / pcs" value={rupiah(b.profit)} tone={good ? 'text-leaf-600' : 'text-red-600'} strong />
-      <div className="flex flex-wrap gap-x-4 gap-y-1 pt-0.5 text-xs text-ink-500">
-        <span>
-          Margin dari modal <b className={good ? 'text-leaf-600' : 'text-red-600'}>{pct(b.marginOnCost, 1)}</b>
-        </span>
-        <span>
-          dari harga jual <b className="text-ink-700">{pct(b.marginOnSell, 1)}</b>
-        </span>
-        {cfg.affiliatePct > 0 && (
-          <span>
-            tanpa affiliate <b className="text-ink-700">{rupiah(b.profitNoAffiliate)}</b>
-          </span>
+    <div className="rounded-2xl bg-ink-50 p-3.5 ring-1 ring-ink-100">
+      <table className="w-full text-sm">
+        {aff && (
+          <thead>
+            <tr className="text-[11px] text-ink-500 uppercase">
+              <th />
+              <th className="pb-1 text-right font-semibold">Organik</th>
+              <th className="pb-1 pl-3 text-right font-semibold text-sun-700">Via affiliate</th>
+            </tr>
+          </thead>
         )}
-      </div>
+        <tbody>
+          <Row label="Harga jual" org={rupiah(b.sell)} />
+          <Row label={`Potongan platform ${num(cfg.feePct, 1)}%`} org={`− ${rupiah(b.fee)}`} toneOrg="text-red-600" toneAff="text-red-600" />
+          {aff && <Row label={`Komisi affiliate ${num(cfg.affiliatePct, 1)}%`} org="–" affv={`− ${rupiah(b.commission)}`} toneOrg="text-ink-300" toneAff="text-red-600" />}
+          <Row label="Uang diterima" org={rupiah(b.sell - b.fee)} affv={rupiah(b.sell - b.fee - b.commission)} />
+          <Row label="Modal" org={`− ${rupiah(b.cost)}`} />
+          <Row label="Laba bersih / pcs" org={rupiah(b.profitOrganic)} affv={rupiah(b.profitAffiliate)} toneOrg={tone(b.profitOrganic)} toneAff={tone(b.profitAffiliate)} strong />
+          <Row label="Margin dari modal" org={pct(b.marginOnCost, 1)} affv={pct(b.marginAffiliate, 1)} toneOrg={tone(b.profitOrganic)} toneAff={tone(b.profitAffiliate)} />
+          <Row label="Margin dari harga jual" org={pct(b.marginOnSell, 1)} affv={pct(sell ? b.profitAffiliate / sell : null, 1)} />
+        </tbody>
+      </table>
     </div>
   )
 }
@@ -109,7 +113,7 @@ export default function PriceSetter({ cost, value, onChange, cfg }: { cost: numb
           <p className="text-xs text-ink-500">
             Untung {markup}% dari modal ({rupiah((cost * markup) / 100)}),{' '}
             {cfg.basis === 'price' ? 'harga sudah dinaikkan agar tetap untung setelah dipotong platform' : 'potongan ditambahkan seperti rumus Excel'}
-            {cfg.affiliatePct > 0 ? ' & komisi affiliate' : ''}.
+            {cfg.affiliateInPrice && cfg.affiliatePct > 0 ? ' & komisi affiliate' : ''}.
           </p>
         </div>
       ) : (

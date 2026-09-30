@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { Plus, X, RotateCcw } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { usePricing, useInvalidate, qk, defaultProfile } from '@/lib/queries'
-import { Button, Label, Segmented, Select, Sheet } from './ui'
+import { Button, Label, Segmented, Select, Sheet, Toggle } from './ui'
 import { PercentInput } from './ProductEditor'
 import { useToast, errMsg } from './Toast'
 
@@ -22,6 +22,7 @@ type Form = {
   promo_min_margin_pct: number
   promo_steps: number[]
   promo_extra_fee_pct: number
+  affiliate_in_price: boolean
 }
 
 const KEYS: (keyof Form)[] = [
@@ -39,13 +40,14 @@ const KEYS: (keyof Form)[] = [
   'promo_min_margin_pct',
   'promo_steps',
   'promo_extra_fee_pct',
+  'affiliate_in_price',
 ]
 
 function pick(src: Record<string, unknown>): Form {
   const f = {} as Record<string, unknown>
   for (const k of KEYS) {
     const v = src[k]
-    f[k] = Array.isArray(v) ? v.map(Number) : k === 'fee_basis' ? v : Number(v)
+    f[k] = Array.isArray(v) ? v.map(Number) : k === 'fee_basis' ? v : k === 'affiliate_in_price' ? !!v : Number(v)
   }
   return f as Form
 }
@@ -131,6 +133,16 @@ export default function PricingSettings({ open, onClose }: { open: boolean; onCl
             <PercentInput label="Potongan platform" value={f.platform_fee_pct} onChange={(n) => set({ platform_fee_pct: n ?? 0 })} />
             <PercentInput label="Komisi affiliate" value={f.affiliate_pct} onChange={(n) => set({ affiliate_pct: n ?? 0 })} />
           </div>
+          <Toggle
+            checked={f.affiliate_in_price}
+            onChange={(v) => set({ affiliate_in_price: v })}
+            label="Harga jual sudah menutup komisi affiliate"
+            text={
+              f.affiliate_in_price
+                ? 'Harga simulasi dinaikkan agar laba via affiliate tetap sesuai margin (harga organik jadi lebih untung).'
+                : 'Harga simulasi dihitung untuk penjualan organik; laba via affiliate ditampilkan terpisah di tabel.'
+            }
+          />
           <div>
             <Label>Cara menghitung potongan</Label>
             <Segmented

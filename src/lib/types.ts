@@ -26,6 +26,7 @@ export interface Profile {
   promo_min_margin_pct: number
   promo_steps: number[]
   promo_extra_fee_pct: number
+  affiliate_in_price: boolean
 }
 
 export interface ExtraAttribute {

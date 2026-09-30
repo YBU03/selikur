@@ -7,6 +7,7 @@ import type { Product } from '@/lib/types'
 import { Badge, Button, Card, Chip, Segmented, Thumb, cx } from './ui'
 
 export interface PromoRow {
+  no: number
   p: Product
   cost: number
   current: number
@@ -102,7 +103,7 @@ export default function PromoSim({
       <div className="mt-4">
         {view === 'kartu' ? (
           <>
-            <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
               {data.slice(0, limit).map((r) => (
                 <PromoCard key={r.p.id} r={r} steps={steps} minMargin={minMargin} extraFee={extraFee} typeLabel={info.label} />
               ))}
@@ -150,12 +151,15 @@ function Verdict({ a }: { a: Item['a'] }) {
 
 function PromoCard({ r, steps, minMargin, extraFee, typeLabel }: { r: Item; steps: number[]; minMargin: number; extraFee: number; typeLabel: string }) {
   const sug = r.a.suggested ? promoBreakdown(r.cost, r.price, r.a.suggested, r.cfg, extraFee) : null
+  const aff = r.cfg.affiliatePct > 0
   return (
     <Card className="p-0">
       <div className="flex items-start gap-3 p-4 pb-3">
         <Thumb path={r.p.photos[0]} size={48} />
         <div className="min-w-0 flex-1">
-          <p className="line-clamp-2 leading-snug font-semibold">{r.p.name}</p>
+          <p className="line-clamp-2 leading-snug font-semibold">
+            <span className="text-ink-400">{r.no}.</span> {r.p.name}
+          </p>
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
             <Verdict a={r.a} />
             <span className="text-xs text-ink-500">
@@ -165,13 +169,14 @@ function PromoCard({ r, steps, minMargin, extraFee, typeLabel }: { r: Item; step
         </div>
       </div>
       <div className="overflow-x-auto px-3">
-        <table className="w-full min-w-[19rem] text-[13px]">
+        <table className="w-full text-[13px]">
           <thead>
             <tr className="text-left text-[11px] text-ink-500 uppercase">
               <th className="px-1.5 py-1.5 font-semibold">Diskon</th>
               <th className="px-1.5 py-1.5 text-right font-semibold">Harga promo</th>
-              <th className="px-1.5 py-1.5 text-right font-semibold">Laba/pcs</th>
-              <th className="px-1.5 py-1.5 text-right font-semibold">Margin</th>
+              <th className="px-1.5 py-1.5 text-right font-semibold">{aff ? 'Laba organik' : 'Laba/pcs'}</th>
+              <th className={cx("px-1.5 py-1.5 text-right font-semibold", aff && "hidden sm:table-cell")}>Margin</th>
+              {aff && <th className="px-1.5 py-1.5 text-right font-semibold text-sun-700">Via affiliate</th>}
             </tr>
           </thead>
           <tbody>
@@ -185,7 +190,12 @@ function PromoCard({ r, steps, minMargin, extraFee, typeLabel }: { r: Item; step
                   </td>
                   <td className="px-1.5 py-2 text-right font-bold whitespace-nowrap tabular-nums">{rupiah(b.sell)}</td>
                   <td className={cx('px-1.5 py-2 text-right font-semibold whitespace-nowrap tabular-nums', tone(b.marginOnCost, minMargin))}>{rupiah(b.profit)}</td>
-                  <td className={cx('px-1.5 py-2 text-right whitespace-nowrap tabular-nums', tone(b.marginOnCost, minMargin))}>{pct(b.marginOnCost)}</td>
+                  <td className={cx('px-1.5 py-2 text-right whitespace-nowrap tabular-nums', aff && 'hidden sm:table-cell', tone(b.marginOnCost, minMargin))}>{pct(b.marginOnCost)}</td>
+                  {aff && (
+                    <td className={cx('px-1.5 py-2 text-right whitespace-nowrap tabular-nums', tone(b.marginAffiliate, minMargin))}>
+                      <b>{rupiah(b.profitAffiliate)}</b> <span className="text-[10px] opacity-75">{pct(b.marginAffiliate)}</span>
+                    </td>
+                  )}
                 </tr>
               )
             })}
@@ -206,14 +216,24 @@ function PromoCard({ r, steps, minMargin, extraFee, typeLabel }: { r: Item; step
             laba {rupiah(sug.profit)}/pcs · margin {pct(sug.marginOnCost)}
           </p>
         )}
+        {sug && aff && (
+          <p className={cx('text-xs', sug.profitAffiliate > 0 ? 'text-sun-700' : 'text-red-600')}>
+            via affiliate: laba {rupiah(sug.profitAffiliate)} · margin {pct(sug.marginAffiliate)}
+          </p>
+        )}
         <p className="mt-2 text-xs text-ink-700">{r.a.reason}</p>
-        <div className="mt-2 flex gap-3 text-xs text-ink-500">
+        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-500">
           <span>
             Maks aman <b className="text-ink-800">{r.a.safe}%</b>
           </span>
           <span>
             Impas di <b className="text-ink-800">{r.a.breakEven}%</b>
           </span>
+          {aff && (
+            <span className="text-sun-700">
+              Affiliate: aman {r.a.safeAffiliate}% · impas {r.a.breakEvenAffiliate}%
+            </span>
+          )}
         </div>
       </div>
     </Card>
@@ -226,7 +246,7 @@ function PromoMatrix({ data, steps, minMargin, extraFee }: { data: Item[]; steps
       <table className="min-w-max border-separate border-spacing-0 text-sm lg:w-full">
         <thead>
           <tr className="text-[11px] text-ink-500 uppercase">
-            <th className="sticky left-0 z-10 rounded-tl-2xl bg-ink-100 px-3 py-2 text-left font-semibold">Produk</th>
+            <th className="sticky left-0 z-10 rounded-tl-2xl bg-ink-100 px-3 py-2 text-left font-semibold">No · Produk</th>
             <th className="bg-ink-100 px-3 py-2 text-right font-semibold">Harga</th>
             {steps.map((d) => (
               <th key={d} className="bg-ink-100 px-3 py-2 text-right font-semibold">
@@ -243,7 +263,10 @@ function PromoMatrix({ data, steps, minMargin, extraFee }: { data: Item[]; steps
             return (
               <tr key={r.p.id}>
                 <td className={cx('sticky left-0 z-10 max-w-[11rem] border-b border-ink-100 px-3 py-2', bg)}>
-                  <p className="truncate font-semibold">{r.p.name}</p>
+                  <p className="truncate font-semibold">
+                    <span className="mr-1 text-ink-400">{r.no}.</span>
+                    {r.p.name}
+                  </p>
                   <Verdict a={r.a} />
                 </td>
                 <td className={cx('border-b border-ink-100 px-3 py-2 text-right font-bold tabular-nums', bg)}>{rupiah(r.price)}</td>
@@ -253,18 +276,21 @@ function PromoMatrix({ data, steps, minMargin, extraFee }: { data: Item[]; steps
                     <td key={d} className={cx('border-b border-ink-100 px-3 py-2 text-right tabular-nums', r.a.suggested === d ? 'bg-leaf-500/15' : bg)}>
                       <b>{rupiah(b.sell)}</b>
                       <p className={cx('text-[11px] font-semibold', tone(b.marginOnCost, minMargin))}>{rupiah(b.profit)}</p>
+                      {r.cfg.affiliatePct > 0 && <p className={cx('text-[11px]', b.profitAffiliate > 0 ? 'text-sun-700' : 'text-red-600')}>af {rupiah(b.profitAffiliate)}</p>}
                     </td>
                   )
                 })}
                 <td className="border-b border-ink-100 bg-leaf-500/10 px-3 py-2 text-right font-bold text-brand-900">{r.a.suggested ? `${r.a.suggested}%` : '–'}</td>
-                <td className={cx('border-b border-ink-100 px-3 py-2 text-right tabular-nums', bg)}>{r.a.safe}%</td>
+                <td className={cx('border-b border-ink-100 px-3 py-2 text-right tabular-nums', bg)}>
+                  {r.a.safe}%{r.cfg.affiliatePct > 0 && <p className="text-[11px] text-sun-700">af {r.a.safeAffiliate}%</p>}
+                </td>
               </tr>
             )
           })}
         </tbody>
       </table>
       <p className="mt-2 flex items-start gap-1.5 text-xs text-ink-500">
-        <Info className="mt-0.5 size-3.5 shrink-0" /> Angka kecil = laba bersih/pcs. Hijau = aman (≥ {minMargin}% modal), oranye = tipis, merah = rugi.
+        <Info className="mt-0.5 size-3.5 shrink-0" /> Angka kecil = laba bersih/pcs organik; &quot;af&quot; = laba bila lewat affiliate. Hijau = aman (≥ {minMargin}% modal), oranye = tipis, merah = rugi.
       </p>
     </div>
   )

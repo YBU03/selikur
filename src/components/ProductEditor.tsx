@@ -298,6 +298,11 @@ export default function ProductEditor({ product }: { product: Product | null }) 
                             <span className={cx(b.profit <= 0 ? 'text-red-600' : 'text-leaf-600', 'font-semibold')}>
                               {rupiah(b.profit)} ({pct(b.marginOnCost, 0)})
                             </span>
+                            {cfg.affiliatePct > 0 && (
+                              <span className={cx('ml-1', b.profitAffiliate <= 0 ? 'text-red-600' : 'text-sun-700')}>
+                                · affiliate {rupiah(b.profitAffiliate)} ({pct(b.marginAffiliate, 0)})
+                              </span>
+                            )}
                           </>
                         )}
                       </p>

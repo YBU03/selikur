@@ -74,6 +74,7 @@ export const defaultProfile: Profile = {
   promo_min_margin_pct: 20,
   promo_steps: [5, 10, 15, 20, 25, 30],
   promo_extra_fee_pct: 0,
+  affiliate_in_price: false,
 }
 
 export function useCategories() {

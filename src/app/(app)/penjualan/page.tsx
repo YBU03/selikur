@@ -503,7 +503,7 @@ function Profit() {
       const e = idx.get(s.variant_id)
       if (!e) continue
       const cfg = pricingCfg(profile, e.product)
-      const b = breakdown(e.variant.buy_price, e.variant.sell_price, s.channel === 'affiliate' ? cfg : { ...cfg, affiliatePct: 0 })
+      const b = breakdown(e.variant.buy_price, e.variant.sell_price, cfg, s.channel)
       for (const t of [all, ch[s.channel]]) {
         t.qty += s.qty
         t.revenue += b.sell * s.qty

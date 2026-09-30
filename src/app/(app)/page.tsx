@@ -239,28 +239,52 @@ export default function Beranda() {
       )}
 
       <SectionTitle>Menu cepat</SectionTitle>
-      <div className="grid grid-cols-4 gap-2">
-        {[
-          { href: '/penjualan', icon: ClipboardList, label: 'Input Jual', tone: 'bg-brand-50 text-brand-700' },
-          { href: '/forecast', icon: LineChart, label: 'Forecast', tone: 'bg-leaf-500/10 text-leaf-600' },
+      {(() => {
+        const menu = [
+          { href: '/penjualan', icon: ClipboardList, label: 'Input Jual', desc: 'Catat penjualan harian', tone: 'bg-brand-50 text-brand-700' },
+          { href: '/forecast', icon: LineChart, label: 'Forecast', desc: 'Kebutuhan kulakan', tone: 'bg-leaf-500/10 text-leaf-600' },
           ...(isAdmin
             ? [
-                { href: '/harga', icon: Percent, label: 'Harga Jual', tone: 'bg-sun-50 text-sun-600' },
-                { href: '/rekap', icon: BarChart3, label: 'Rekap', tone: 'bg-ink-100 text-ink-700' },
+                { href: '/harga', icon: Percent, label: 'Harga Jual', desc: 'Simulasi & promo', tone: 'bg-sun-50 text-sun-600' },
+                { href: '/rekap', icon: BarChart3, label: 'Rekap', desc: 'Laporan belanja', tone: 'bg-ink-100 text-ink-700' },
+                { href: '/belanja/baru', icon: ShoppingBasket, label: 'Belanja Manual', desc: 'Pilih barang sendiri', tone: 'bg-brand-50 text-brand-700' },
+                { href: '/jadwal', icon: CalendarClock, label: 'Jadwal', desc: 'Kalender kulakan', tone: 'bg-sun-50 text-sun-600' },
               ]
             : [
-                { href: '/jadwal', icon: CalendarClock, label: 'Jadwal', tone: 'bg-sun-50 text-sun-600' },
-                { href: '/belanja', icon: ShoppingBasket, label: 'Belanja', tone: 'bg-ink-100 text-ink-700' },
+                { href: '/jadwal', icon: CalendarClock, label: 'Jadwal', desc: 'Kalender kulakan', tone: 'bg-sun-50 text-sun-600' },
+                { href: '/belanja', icon: ShoppingBasket, label: 'Belanja', desc: 'Daftar belanja', tone: 'bg-ink-100 text-ink-700' },
               ]),
-        ].map((m) => (
-          <Link key={m.href} href={m.href} className="flex flex-col items-center gap-1.5 rounded-2xl py-2 transition active:scale-95">
-            <span className={cx('flex size-13 items-center justify-center rounded-2xl', m.tone)}>
-              <m.icon className="size-6" />
-            </span>
-            <span className="text-xs font-semibold text-ink-700">{m.label}</span>
-          </Link>
-        ))}
-      </div>
+        ]
+        return (
+          <>
+            {/* HP: ikon ringkas */}
+            <div className="grid grid-cols-4 gap-2 lg:hidden">
+              {menu.slice(0, 4).map((m) => (
+                <Link key={m.href} href={m.href} className="flex flex-col items-center gap-1.5 rounded-2xl py-2 transition active:scale-95">
+                  <span className={cx('flex size-13 items-center justify-center rounded-2xl', m.tone)}>
+                    <m.icon className="size-6" />
+                  </span>
+                  <span className="text-xs font-semibold text-ink-700">{m.label}</span>
+                </Link>
+              ))}
+            </div>
+            {/* Desktop: kartu dengan keterangan */}
+            <Card className="hidden grid-cols-2 gap-1 p-2 lg:grid">
+              {menu.map((m) => (
+                <Link key={m.href} href={m.href} className="group flex items-center gap-3 rounded-2xl p-3 transition hover:bg-ink-50">
+                  <span className={cx('flex size-11 shrink-0 items-center justify-center rounded-xl transition group-hover:scale-105', m.tone)}>
+                    <m.icon className="size-5" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold text-ink-900">{m.label}</span>
+                    <span className="block truncate text-xs text-ink-500">{m.desc}</span>
+                  </span>
+                </Link>
+              ))}
+            </Card>
+          </>
+        )
+      })()}
       </div>
       </div>
     </div>

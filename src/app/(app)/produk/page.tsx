@@ -100,7 +100,7 @@ function Catalog() {
         ))}
       </div>
 
-      <div className="mt-4 grid gap-2.5 lg:grid-cols-2 lg:gap-3 2xl:grid-cols-3">
+      <div className="mt-4 grid grid-cols-1 gap-2.5 lg:grid-cols-2 lg:gap-3 2xl:grid-cols-3">
         {isPending &&
           Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-[84px] rounded-3xl" />)}
         {!isPending && rows.length === 0 && (
@@ -121,7 +121,7 @@ function Catalog() {
             }
           />
         )}
-        {rows.slice(0, limit).map((p) => {
+        {rows.slice(0, limit).map((p, idx) => {
           const prices = p.variants.map((v) => (isAdmin ? v.buy_price : v.sell_price))
           const min = Math.min(...prices)
           const max = Math.max(...prices)
@@ -135,7 +135,10 @@ function Catalog() {
             }
           return (
             <Link key={p.id} href={`/produk/detail?id=${p.id}`} className="flex items-center gap-3 rounded-3xl bg-white p-3 shadow-soft ring-1 ring-ink-100 transition active:scale-[0.99]">
-              <Thumb path={p.photos[0]} size={60} />
+              <div className="relative">
+                <Thumb path={p.photos[0]} size={60} />
+                <span className="absolute -top-1.5 -left-1.5 flex h-6 min-w-6 items-center justify-center rounded-full bg-brand-700 px-1 text-[11px] font-bold text-white ring-2 ring-white">{idx + 1}</span>
+              </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <p className="truncate font-semibold">{p.name}</p>

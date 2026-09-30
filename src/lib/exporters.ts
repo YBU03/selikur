@@ -85,9 +85,11 @@ export async function exportCatalogExcel(
     { header: 'Harga Kulak', key: 'buy', width: 14 },
     { header: 'Harga Jual', key: 'sell', width: 14 },
     { header: 'Potongan Platform', key: 'fee', width: 16 },
+    { header: 'Laba Organik', key: 'profit', width: 14 },
+    { header: 'Margin Organik (dari modal)', key: 'mcost', width: 14 },
     { header: 'Komisi Affiliate', key: 'aff', width: 15 },
-    { header: 'Laba Bersih', key: 'profit', width: 14 },
-    { header: 'Margin (dari modal)', key: 'mcost', width: 12 },
+    { header: 'Laba via Affiliate', key: 'profitAff', width: 16 },
+    { header: 'Margin Affiliate (dari modal)', key: 'maff', width: 15 },
     { header: 'Stok (pcs)', key: 'stock', width: 11 },
     { header: 'Stok Min', key: 'min', width: 10 },
     { header: 'Foto', key: 'photo', width: 40 },
@@ -107,17 +109,20 @@ export async function exportCatalogExcel(
         buy: v?.buy_price ?? null,
         sell: v?.sell_price ?? null,
         fee: b?.fee ?? null,
-        aff: b?.affiliate ?? null,
-        profit: b?.profit ?? null,
+        profit: b?.profitOrganic ?? null,
         mcost: b?.marginOnCost ?? null,
+        aff: b?.commission ?? null,
+        profitAff: b?.profitAffiliate ?? null,
+        maff: b?.marginAffiliate ?? null,
         stock: v?.stock ?? null,
         min: v?.min_stock ?? null,
         photo: p.photos[0] ? photoUrl(p.photos[0]) : '',
       })
     }
   }
-  styleSheet(ws, ['buy', 'sell', 'fee', 'aff', 'profit'])
+  styleSheet(ws, ['buy', 'sell', 'fee', 'aff', 'profit', 'profitAff'])
   ws.getColumn('mcost').numFmt = '0.0%'
+  ws.getColumn('maff').numFmt = '0.0%'
   await deliver(await wbBlob(wb), `Selikur-Katalog-${stamp()}.xlsx`, mode)
 }
 

@@ -92,7 +92,8 @@ export default function ForecastPage() {
 
       {noData && (
         <div className="mt-3 rounded-2xl bg-sun-50 px-4 py-3 text-sm text-sun-700">
-          Belum ada data penjualan. <Link href="/penjualan" className="font-semibold underline">Input penjualan</Link> atau isi perkiraan jual/minggu di tiap varian.
+          Belum ada data penjualan. <Link href="/penjualan" className="font-semibold underline">Input penjualan</Link>, isi perkiraan jual/minggu di tiap varian,
+          atau langsung <Link href="/belanja/baru" className="font-semibold underline">buat daftar belanja manual</Link>.
         </div>
       )}
 
@@ -104,7 +105,7 @@ export default function ForecastPage() {
         ))}
       </div>
 
-      <div className="mt-3 grid gap-2 lg:grid-cols-2 lg:gap-3 2xl:grid-cols-3">
+      <div className="mt-3 grid grid-cols-1 gap-2 lg:grid-cols-2 lg:gap-3 2xl:grid-cols-3">
         {isPending && <Loading />}
         {!isPending && forecasts.length === 0 && (
           <EmptyState title="Belum ada produk aktif" text="Tambahkan produk & varian dulu." action={<ButtonLink href="/produk/baru" size="sm">Tambah produk</ButtonLink>} />
