@@ -65,6 +65,12 @@ function StatusBadge({ s }: { s: PriceStatus }) {
   return <Badge tone={i.tone}>{i.label}</Badge>
 }
 
+type Channel = 'organik' | 'affiliate'
+
+/**
+ * Tabel simulasi: per baris margin → harga jual, potongan platform, komisi affiliate (bila kanal affiliate),
+ * dan laba BERSIH yang benar-benar diterima setelah dikurangi modal.
+ */
 function SimTable({
   cost,
   cfg,
@@ -73,6 +79,7 @@ function SimTable({
   recMarkup,
   selected,
   onPick,
+  channel = 'organik',
 }: {
   cost: number
   cfg: PricingCfg
@@ -81,26 +88,28 @@ function SimTable({
   recMarkup?: number
   selected?: number | null
   onPick?: (m: number) => void
+  channel?: Channel
 }) {
   const near = current ? nearestStep(cost, current, cfg, steps) : null
-  const aff = cfg.affiliatePct > 0
+  const aff = channel === 'affiliate' && cfg.affiliatePct > 0
+  const th = 'px-1 py-1.5 text-right font-semibold sm:px-1.5'
   return (
     <div className="-mx-1 overflow-x-auto">
-      <table className="w-full text-[13px]">
+      <table className="w-full text-[12px] sm:text-[13px]">
         <thead>
-          <tr className="text-left text-[11px] text-ink-500 uppercase">
-            <th className="px-1.5 py-1.5 font-semibold">Margin</th>
-            <th className="px-1.5 py-1.5 text-right font-semibold">Harga jual</th>
-            <th className="hidden px-1.5 py-1.5 text-right font-semibold sm:table-cell">Potongan</th>
-            <th className="px-1.5 py-1.5 text-right font-semibold">{aff ? 'Laba organik' : 'Laba/pcs'}</th>
-            {aff && <th className="px-1.5 py-1.5 text-right font-semibold text-sun-700">Via affiliate {num(cfg.affiliatePct, 1)}%</th>}
+          <tr className="text-left text-[10px] leading-tight text-ink-500 uppercase sm:text-[11px]">
+            <th className="px-1 py-1.5 font-semibold sm:px-1.5">Margin</th>
+            <th className={th}>Harga jual</th>
+            <th className={cx(th, 'text-red-600')}>Platform {num(cfg.feePct, 1)}%</th>
+            {aff && <th className={cx(th, 'text-sun-700')}>Affiliate {num(cfg.affiliatePct, 1)}%</th>}
+            <th className={cx(th, 'text-leaf-600')}>Bersih</th>
           </tr>
         </thead>
         <tbody>
-          {current != null && current > 0 && near == null && <CurrentRow cost={cost} current={current} cfg={cfg} />}
+          {current != null && current > 0 && near == null && <CurrentRow cost={cost} current={current} cfg={cfg} channel={channel} />}
           {steps.map((m) => {
             const sell = priceFromMarkup(cost, m, cfg)
-            const b = breakdown(cost, sell, cfg)
+            const b = breakdown(cost, sell, cfg, aff ? 'affiliate' : 'organik')
             const on = selected === m
             const isRec = recMarkup != null && Math.abs(recMarkup - m) < 5
             return (
@@ -109,54 +118,80 @@ function SimTable({
                 onClick={() => onPick?.(m)}
                 className={cx('border-t border-ink-100', onPick && 'cursor-pointer active:bg-ink-50', on ? 'bg-brand-50' : isRec ? 'bg-leaf-500/5' : '')}
               >
-                <td className="px-1.5 py-2 font-semibold">
-                  <span className="flex max-w-[4.5rem] flex-wrap items-center gap-1 sm:max-w-none sm:flex-nowrap sm:whitespace-nowrap">
+                <td className="px-1 py-2 font-semibold sm:px-1.5">
+                  <span className="flex max-w-[4rem] flex-wrap items-center gap-1 sm:max-w-none sm:flex-nowrap sm:whitespace-nowrap">
                     {on && <Check className="size-3.5 text-brand-700" />}
                     {m}%
                     {near === m && <span className="rounded bg-ink-800 px-1 text-[9px] font-bold text-white uppercase">sekarang</span>}
                     {isRec && <span className="rounded bg-leaf-500 px-1 text-[9px] font-bold text-white uppercase">saran</span>}
                   </span>
                 </td>
-                <td className="px-1.5 py-2 text-right font-bold whitespace-nowrap tabular-nums">{rupiah(sell)}</td>
-                <td className="hidden px-1.5 py-2 text-right whitespace-nowrap text-red-600 tabular-nums sm:table-cell">{rupiah(b.fee)}</td>
-                <td className={cx('px-1.5 py-2 text-right font-semibold whitespace-nowrap tabular-nums', b.profit > 0 ? 'text-leaf-600' : 'text-red-600')}>{rupiah(b.profit)}</td>
-                {aff && <AffCell b={b} />}
+                <td className="px-1 py-2 text-right font-bold whitespace-nowrap tabular-nums sm:px-1.5">{rupiah(sell)}</td>
+                <td className="px-1 py-2 text-right whitespace-nowrap text-red-600 tabular-nums sm:px-1.5">−{rupiah(b.fee).replace('Rp ', '')}</td>
+                {aff && <td className="px-1 py-2 text-right whitespace-nowrap text-sun-700 tabular-nums sm:px-1.5">−{rupiah(b.affiliate).replace('Rp ', '')}</td>}
+                <td className={cx('px-1 py-2 text-right whitespace-nowrap tabular-nums sm:px-1.5', b.profit > 0 ? 'text-leaf-600' : 'text-red-600')}>
+                  <b>{rupiah(b.profit)}</b>
+                  <span className="block text-[10px] opacity-75">{pct(b.marginOnCost)} modal</span>
+                </td>
               </tr>
             )
           })}
         </tbody>
       </table>
+      <p className="mt-1.5 px-1 text-[11px] text-ink-500">
+        Bersih = harga jual − potongan platform{aff ? ' − komisi affiliate' : ''} − modal {rupiah(cost)}. Potongan & komisi dihitung dari harga jual.
+      </p>
     </div>
   )
 }
 
-function CurrentRow({ cost, current, cfg }: { cost: number; current: number; cfg: PricingCfg }) {
-  const b = breakdown(cost, current, cfg)
-  const aff = cfg.affiliatePct > 0
+function CurrentRow({ cost, current, cfg, channel }: { cost: number; current: number; cfg: PricingCfg; channel: Channel }) {
+  const aff = channel === 'affiliate' && cfg.affiliatePct > 0
+  const b = breakdown(cost, current, cfg, aff ? 'affiliate' : 'organik')
   const im = impliedMarkup(cost, current, cfg)
   return (
     <tr className="border-t border-ink-100 bg-ink-800 text-white">
-      <td className="rounded-l-xl px-1.5 py-2 font-semibold whitespace-nowrap">
-        Sekarang <span className="text-[11px] font-normal text-white/70">{im != null ? `${num(Math.max(im, -99), 0)}%` : ''}</span>
+      <td className="rounded-l-xl px-1 py-2 font-semibold whitespace-nowrap sm:px-1.5">
+        Sekarang <span className="block text-[10px] font-normal text-white/70 sm:inline">{im != null ? `${num(Math.max(im, -99), 0)}%` : ''}</span>
       </td>
-      <td className="px-1.5 py-2 text-right font-bold whitespace-nowrap tabular-nums">{rupiah(current)}</td>
-      <td className="hidden px-1.5 py-2 text-right whitespace-nowrap text-red-300 tabular-nums sm:table-cell">{rupiah(b.fee)}</td>
-      <td className={cx('px-1.5 py-2 text-right font-semibold whitespace-nowrap tabular-nums', !aff && 'rounded-r-xl', b.profit > 0 ? 'text-leaf-400' : 'text-red-300')}>{rupiah(b.profit)}</td>
-      {aff && (
-        <td className={cx('rounded-r-xl px-1.5 py-2 text-right font-semibold whitespace-nowrap tabular-nums', b.profitAffiliate > 0 ? 'text-sun-300' : 'text-red-300')}>
-          {rupiah(b.profitAffiliate)}
-        </td>
-      )}
+      <td className="px-1 py-2 text-right font-bold whitespace-nowrap tabular-nums sm:px-1.5">{rupiah(current)}</td>
+      <td className="px-1 py-2 text-right whitespace-nowrap text-red-300 tabular-nums sm:px-1.5">−{rupiah(b.fee).replace('Rp ', '')}</td>
+      {aff && <td className="px-1 py-2 text-right whitespace-nowrap text-sun-300 tabular-nums sm:px-1.5">−{rupiah(b.affiliate).replace('Rp ', '')}</td>}
+      <td className={cx('rounded-r-xl px-1 py-2 text-right whitespace-nowrap tabular-nums sm:px-1.5', b.profit > 0 ? 'text-leaf-400' : 'text-red-300')}>
+        <b>{rupiah(b.profit)}</b>
+        <span className="block text-[10px] opacity-75">{pct(b.marginOnCost)} modal</span>
+      </td>
     </tr>
   )
 }
 
-/** Sel laba bila terjual lewat affiliate, beserta margin dari modal. */
-function AffCell({ b }: { b: ReturnType<typeof breakdown> }) {
+/** Rincian satu harga: harga − platform − affiliate − modal = bersih. */
+function Rincian({ cost, sell, cfg, channel, dark }: { cost: number; sell: number; cfg: PricingCfg; channel: Channel; dark?: boolean }) {
+  const aff = channel === 'affiliate' && cfg.affiliatePct > 0
+  const b = breakdown(cost, sell, cfg, aff ? 'affiliate' : 'organik')
   return (
-    <td className={cx('px-1.5 py-2 text-right whitespace-nowrap tabular-nums', b.profitAffiliate > 0 ? 'text-sun-700' : 'text-red-600')}>
-      <b>{rupiah(b.profitAffiliate)}</b> <span className="hidden text-[10px] opacity-75 sm:inline">{pct(b.marginAffiliate)}</span>
-    </td>
+    <div className={cx('space-y-0.5 text-[11px] tabular-nums', dark ? 'text-ink-600' : 'text-ink-500')}>
+      <p className="flex justify-between gap-2">
+        <span>Platform {num(cfg.feePct, 1)}%</span>
+        <span className="whitespace-nowrap text-red-600">−{rupiah(b.fee)}</span>
+      </p>
+      {aff && (
+        <p className="flex justify-between gap-2">
+          <span>Affiliate {num(cfg.affiliatePct, 1)}%</span>
+          <span className="whitespace-nowrap text-sun-700">−{rupiah(b.affiliate)}</span>
+        </p>
+      )}
+      <p className="flex justify-between gap-2">
+        <span>Modal</span>
+        <span className="whitespace-nowrap">−{rupiah(cost)}</span>
+      </p>
+      <p className={cx('flex justify-between gap-2 border-t border-ink-200 pt-0.5 text-[12px] font-bold', b.profit > 0 ? 'text-leaf-600' : 'text-red-600')}>
+        <span>Bersih</span>
+        <span className="whitespace-nowrap">
+          {rupiah(b.profit)} · {pct(b.marginOnCost)}
+        </span>
+      </p>
+    </div>
   )
 }
 
@@ -173,10 +208,9 @@ function Diff({ from, to }: { from: number; to: number }) {
   )
 }
 
-function ProductSimCard({ r, onApply, onOpen }: { r: Row; onApply: () => void; onOpen: () => void }) {
-  const aff = r.cfg.affiliatePct > 0
-  const now = breakdown(r.cost, r.current, r.cfg)
-  const sar = breakdown(r.cost, r.rec.price, r.cfg)
+function ProductSimCard({ r, onApply, onOpen, channel }: { r: Row; onApply: () => void; onOpen: () => void; channel: Channel }) {
+  const aff = channel === 'affiliate' && r.cfg.affiliatePct > 0
+  const sar = breakdown(r.cost, r.rec.price, r.cfg, aff ? 'affiliate' : 'organik')
   return (
     <Card className="p-0">
       <div className="flex items-start gap-3 p-4 pb-3">
@@ -192,46 +226,33 @@ function ProductSimCard({ r, onApply, onOpen }: { r: Row; onApply: () => void; o
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-px border-y border-ink-100 bg-ink-100 text-center">
-        <div className="bg-white px-3 py-2">
-          <p className="text-[11px] text-ink-500">Modal</p>
+      <div className="grid grid-cols-2 gap-px border-y border-ink-100 bg-ink-100">
+        <div className="bg-white px-3 py-2 text-center">
+          <p className="text-[11px] text-ink-500">Modal / pcs</p>
           <p className="font-bold tabular-nums">{rupiah(r.cost)}</p>
         </div>
         <div className="bg-white px-3 py-2">
-          <p className="text-[11px] text-ink-500">Harga sekarang</p>
-          <p className="font-bold tabular-nums">{r.current ? rupiah(r.current) : '–'}</p>
-          {r.current > 0 && (
-            <>
-              <p className={cx('text-[11px] font-semibold', now.profit > 0 ? 'text-leaf-600' : 'text-red-600')}>
-                laba {rupiah(now.profit)} · {pct(now.marginOnCost)}
-              </p>
-              {aff && (
-                <p className={cx('text-[11px] font-semibold', now.profitAffiliate > 0 ? 'text-sun-700' : 'text-red-600')}>
-                  via affiliate {rupiah(now.profitAffiliate)} · {pct(now.marginAffiliate)}
-                </p>
-              )}
-            </>
-          )}
+          <p className="text-center text-[11px] text-ink-500">Harga sekarang</p>
+          <p className="text-center font-bold tabular-nums">{r.current ? rupiah(r.current) : '–'}</p>
+          {r.current > 0 && <Rincian cost={r.cost} sell={r.current} cfg={r.cfg} channel={channel} />}
         </div>
       </div>
       <div className="px-3 pt-2">
-        <SimTable cost={r.cost} cfg={r.cfg} steps={r.sim.steps} current={r.current} recMarkup={r.rec.markup} />
+        <SimTable cost={r.cost} cfg={r.cfg} steps={r.sim.steps} current={r.current} recMarkup={r.rec.markup} channel={channel} />
       </div>
       <div className="m-3 rounded-2xl bg-gradient-to-br from-leaf-500/10 to-brand-50 p-3.5 ring-1 ring-leaf-500/20">
-        <div className="flex items-start justify-between gap-3">
-          <div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
             <p className="flex items-center gap-1.5 text-xs font-semibold text-leaf-600 uppercase">
               <Sparkles className="size-3.5" /> Saran harga
             </p>
             <p className="mt-0.5 text-2xl font-extrabold text-brand-900 tabular-nums">{rupiah(r.rec.price)}</p>
             <p className="text-xs text-ink-600">
-              laba {rupiah(sar.profit)}/pcs · margin {pct(sar.marginOnCost)} <Diff from={r.current} to={r.rec.price} />
+              bersih {rupiah(sar.profit)}/pcs{aff ? ' (lewat affiliate)' : ''} <Diff from={r.current} to={r.rec.price} />
             </p>
-            {aff && (
-              <p className="text-xs text-sun-700">
-                via affiliate: laba {rupiah(sar.profitAffiliate)} · margin {pct(sar.marginAffiliate)}
-              </p>
-            )}
+          </div>
+          <div className="shrink-0 rounded-xl bg-white/70 p-2 sm:w-48">
+            <Rincian cost={r.cost} sell={r.rec.price} cfg={r.cfg} channel={channel} dark />
           </div>
         </div>
         <p className="mt-2 text-xs text-ink-600">
@@ -250,7 +271,7 @@ function ProductSimCard({ r, onApply, onOpen }: { r: Row; onApply: () => void; o
   )
 }
 
-function Matrix({ rows, onOpen, steps }: { rows: Row[]; onOpen: (r: Row) => void; steps: number[] }) {
+function Matrix({ rows, onOpen, steps, channel }: { rows: Row[]; onOpen: (r: Row) => void; steps: number[]; channel: Channel }) {
   return (
     <div className="-mx-4 overflow-x-auto px-4 pb-2">
       <table className="min-w-max border-separate border-spacing-0 text-sm">
@@ -269,11 +290,17 @@ function Matrix({ rows, onOpen, steps }: { rows: Row[]; onOpen: (r: Row) => void
         </thead>
         <tbody>
           {rows.map((r, i) => {
+            const aff = channel === 'affiliate' && r.cfg.affiliatePct > 0
+            const ch = aff ? 'affiliate' : 'organik'
             const near = nearestStep(r.cost, r.current, r.cfg, steps)
-            const now = breakdown(r.cost, r.current, r.cfg)
-            const sar = breakdown(r.cost, r.rec.price, r.cfg)
+            const now = breakdown(r.cost, r.current, r.cfg, ch)
+            const sar = breakdown(r.cost, r.rec.price, r.cfg, ch)
             const bg = i % 2 ? 'bg-ink-50' : 'bg-white'
-            const aff = r.cfg.affiliatePct > 0
+            const Cut = ({ b, dark }: { b: ReturnType<typeof breakdown>; dark?: boolean }) => (
+              <p className={cx('text-[10px]', dark ? 'text-white/70' : 'text-ink-400')}>
+                −{rupiah(b.fee + b.affiliate).replace('Rp ', '')} potongan
+              </p>
+            )
             return (
               <tr key={r.p.id} onClick={() => onOpen(r)} className="cursor-pointer">
                 <td className={cx('sticky left-0 z-10 max-w-[10rem] border-b border-ink-100 px-3 py-2', bg)}>
@@ -281,31 +308,34 @@ function Matrix({ rows, onOpen, steps }: { rows: Row[]; onOpen: (r: Row) => void
                     <span className="mr-1 text-ink-400">{r.no}.</span>
                     {r.p.name}
                   </p>
-                  <div className="mt-0.5 flex gap-1">
-                    {r.current > 0 && <StatusBadge s={r.rec.status} />}
-                  </div>
+                  <div className="mt-0.5 flex gap-1">{r.current > 0 && <StatusBadge s={r.rec.status} />}</div>
                 </td>
                 <td className={cx('border-b border-ink-100 px-3 py-2 text-right tabular-nums', bg)}>{rupiah(r.cost)}</td>
                 <td className={cx('border-b border-ink-100 px-3 py-2 text-right tabular-nums', bg)}>
                   <b>{r.current ? rupiah(r.current) : '–'}</b>
-                  {r.current > 0 && <p className={cx('text-[11px]', now.profit > 0 ? 'text-leaf-600' : 'text-red-600')}>{rupiah(now.profit)}</p>}
-                  {r.current > 0 && aff && <p className={cx('text-[11px]', now.profitAffiliate > 0 ? 'text-sun-700' : 'text-red-600')}>{rupiah(now.profitAffiliate)}</p>}
+                  {r.current > 0 && (
+                    <>
+                      <Cut b={now} />
+                      <p className={cx('text-[11px] font-semibold', now.profit > 0 ? 'text-leaf-600' : 'text-red-600')}>bersih {rupiah(now.profit)}</p>
+                    </>
+                  )}
                 </td>
                 {steps.map((m) => {
                   const s = priceFromMarkup(r.cost, m, r.cfg)
-                  const b = breakdown(r.cost, s, r.cfg)
+                  const b = breakdown(r.cost, s, r.cfg, ch)
+                  const dark = near === m
                   return (
-                    <td key={m} className={cx('border-b border-ink-100 px-3 py-2 text-right tabular-nums', near === m ? 'bg-ink-800 text-white' : bg)}>
+                    <td key={m} className={cx('border-b border-ink-100 px-3 py-2 text-right tabular-nums', dark ? 'bg-ink-800 text-white' : bg)}>
                       <b>{rupiah(s)}</b>
-                      <p className={cx('text-[11px]', near === m ? 'text-white/75' : 'text-ink-500')}>{rupiah(b.profit)}</p>
-                      {aff && <p className={cx('text-[11px]', near === m ? 'text-sun-300' : b.profitAffiliate > 0 ? 'text-sun-700' : 'text-red-600')}>{rupiah(b.profitAffiliate)}</p>}
+                      <Cut b={b} dark={dark} />
+                      <p className={cx('text-[11px] font-semibold', dark ? 'text-leaf-400' : b.profit > 0 ? 'text-leaf-600' : 'text-red-600')}>bersih {rupiah(b.profit)}</p>
                     </td>
                   )
                 })}
                 <td className="border-b border-ink-100 bg-leaf-500/10 px-3 py-2 text-right tabular-nums">
                   <b className="text-brand-900">{rupiah(r.rec.price)}</b>
-                  <p className="text-[11px] text-leaf-600">{rupiah(sar.profit)}</p>
-                  {aff && <p className="text-[11px] text-sun-700">{rupiah(sar.profitAffiliate)}</p>}
+                  <Cut b={sar} />
+                  <p className="text-[11px] font-semibold text-leaf-600">bersih {rupiah(sar.profit)}</p>
                 </td>
               </tr>
             )
@@ -313,7 +343,7 @@ function Matrix({ rows, onOpen, steps }: { rows: Row[]; onOpen: (r: Row) => void
         </tbody>
       </table>
       <p className="mt-2 text-xs text-ink-500">
-        Angka kecil hijau/abu = laba bersih organik per pcs, oranye = laba bila terjual lewat affiliate. Kotak gelap = posisi harga sekarang. Geser ke samping untuk melihat semua kolom, ketuk baris untuk mengatur harga.
+        Tiap sel: harga jual, total potongan (platform{channel === 'affiliate' ? ' + komisi affiliate' : ''}), dan laba bersih per pcs setelah dikurangi modal. Kotak gelap = posisi harga sekarang.
       </p>
     </div>
   )
@@ -397,6 +427,7 @@ function HargaPageInner() {
   const cfg = pricingCfg(profile)
   const sim = simCfg(profile)
   const [tab, setTab] = useState<'harga' | 'promo'>('harga')
+  const [channel, setChannel] = useState<Channel>('organik')
   const [page] = useState(() => (typeof window !== 'undefined' && window.innerWidth >= 1024 ? 6 : PAGE))
 
   const all = useMemo<Row[]>(() => {
@@ -514,7 +545,7 @@ function HargaPageInner() {
             <b>
               {sim.safeMin}–{sim.safeMax}% dari modal
             </b>{' '}
-            (setelah potongan platform{cfg.affiliateInPrice && cfg.affiliatePct ? ' & affiliate' : ''}){cfg.affiliatePct > 0 && !cfg.affiliateInPrice ? `. Kolom oranye = laba bila terjual lewat affiliate ${cfg.affiliatePct}%` : ''}. Produk <b>laris</b> disarankan ±{sim.targets.laris}%, <b>normal</b> ±{sim.targets.normal}%,{' '}
+            (setelah potongan platform{cfg.affiliateInPrice && cfg.affiliatePct ? ' & affiliate' : ''}){cfg.affiliatePct > 0 && !cfg.affiliateInPrice ? `. Pilih "Lewat affiliate" untuk melihat bersih setelah komisi ${cfg.affiliatePct}%` : ''}. Produk <b>laris</b> disarankan ±{sim.targets.laris}%, <b>normal</b> ±{sim.targets.normal}%,{' '}
             <b>lambat</b> ±{sim.targets.lambat}%, lalu dibulatkan ke harga cantik (…900).{' '}
             <button onClick={() => setSettings(true)} className="font-semibold text-brand-700 underline">
               Ubah persen
@@ -552,6 +583,20 @@ function HargaPageInner() {
         </div>
       ) : (
       <>
+      {cfg.affiliatePct > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-ink-600">Hitung laba bersih:</span>
+          <Segmented
+            className="min-w-[17rem] flex-1 sm:flex-none"
+            value={channel}
+            onChange={setChannel}
+            options={[
+              { value: 'organik', label: 'Organik' },
+              { value: 'affiliate', label: `Lewat affiliate ${num(cfg.affiliatePct, 1)}%` },
+            ]}
+          />
+        </div>
+      )}
       <div className="no-scrollbar -mx-4 mt-3 flex gap-2 overflow-x-auto px-4">
         {filterChips.map((c) => (
           <Chip key={c.v} active={filter === c.v} onClick={() => (setFilter(c.v), setLimit(page))}>
@@ -568,7 +613,7 @@ function HargaPageInner() {
           <>
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
             {rows.slice(0, limit).map((r) => (
-              <ProductSimCard key={r.p.id} r={r} onOpen={() => setPick(r.p)} onApply={() => setConfirm([r])} />
+              <ProductSimCard key={r.p.id} r={r} channel={channel} onOpen={() => setPick(r.p)} onApply={() => setConfirm([r])} />
             ))}
           </div>
             {rows.length > limit && (
@@ -583,7 +628,7 @@ function HargaPageInner() {
             )}
           </>
         ) : (
-          rows.length > 0 && <Matrix rows={rows} steps={sim.steps} onOpen={(r) => setPick(r.p)} />
+          rows.length > 0 && <Matrix rows={rows} steps={sim.steps} channel={channel} onOpen={(r) => setPick(r.p)} />
         )}
       </div>
 

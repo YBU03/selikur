@@ -183,12 +183,20 @@ async function toDataUrl(url: string): Promise<string | null> {
 
 type AutoTable = typeof import('jspdf-autotable').default
 
-async function pdfBase(title: string, subtitle: string) {
+export interface StoreContact {
+  address?: string | null
+  phone?: string | null
+}
+
+/** Kepala PDF: logo, judul, subjudul, dan (opsional) alamat & telepon toko. Mengembalikan posisi awal konten. */
+async function pdfBase(title: string, subtitle: string, contact?: StoreContact | null) {
   const { jsPDF } = await import('jspdf')
   const autoTable: AutoTable = (await import('jspdf-autotable')).default
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const contactLine = contact ? [contact.address?.trim(), contact.phone?.trim() ? `Telp/WA ${contact.phone.trim()}` : null].filter(Boolean).join('  ·  ') : ''
+  const headH = contactLine ? 31 : 26
   doc.setFillColor(11, 95, 73)
-  doc.rect(0, 0, 210, 26, 'F')
+  doc.rect(0, 0, 210, headH, 'F')
   const logo = await toDataUrl('/icons/icon-192.png')
   if (logo) doc.addImage(logo, 'PNG', 12, 5, 16, 16)
   doc.setTextColor(255, 255, 255)
@@ -198,8 +206,13 @@ async function pdfBase(title: string, subtitle: string) {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9.5)
   doc.text(subtitle, 32, 18.5)
+  if (contactLine) {
+    doc.setFontSize(8.5)
+    doc.setTextColor(200, 235, 220)
+    doc.text(doc.splitTextToSize(pdfText(contactLine), 166)[0], 32, 24.5)
+  }
   doc.setTextColor(18, 26, 22)
-  return { doc, autoTable }
+  return { doc, autoTable, top: headH + 6 }
 }
 
 function lastY(doc: unknown) {
@@ -212,6 +225,8 @@ export interface ListPdfOptions {
   groupBySupplier: boolean
   /** Pengaturan toko untuk simulasi laba (potongan platform & affiliate). */
   profile?: Profile
+  /** Tampilkan alamat & telepon toko di kepala PDF. */
+  showStore?: boolean
 }
 
 /** Teks aman untuk font standar PDF (tanpa karakter khusus yang tidak didukung). */
@@ -231,7 +246,12 @@ export async function exportListPdf(
   const idx = indexVariants(products)
   const sup = new Map(suppliers.map((s) => [s.id, s]))
   const pcsTotal = items.reduce((s, i) => s + i.qty_planned, 0)
-  const { doc, autoTable } = await pdfBase(pdfText(list.title), pdfText(`${storeName} · dicetak ${tgl(new Date())} · ${items.length} barang · ${num(pcsTotal)} pcs`))
+  const contact = opts.showStore && opts.profile ? { address: opts.profile.store_address, phone: opts.profile.store_phone } : null
+  const { doc, autoTable, top } = await pdfBase(
+    pdfText(list.title),
+    pdfText(`${storeName} · dicetak ${tgl(new Date())} · ${items.length} barang · ${num(pcsTotal)} pcs`),
+    contact,
+  )
 
   // kelompokkan per supplier (atau satu tabel)
   const groups = new Map<string, ShoppingItem[]>()
@@ -273,7 +293,7 @@ export async function exportListPdf(
         6: { cellWidth: 34 },
       }
 
-  let y = 32
+  let y = top
   let no = 0
   for (const [key, rows] of groups) {
     if (opts.groupBySupplier) {
@@ -394,11 +414,19 @@ export async function exportListPdf(
   await deliver(doc.output('blob'), `Selikur-${safe(list.title)}.pdf`, mode, list.title)
 }
 
-export async function exportRecapPdf(title: string, periodLabel: string, r: Recap, prev: Recap | null, storeName: string, mode: Deliver = 'download') {
-  const { doc, autoTable } = await pdfBase(`Rekap Belanja ${title}`, `${storeName} · ${periodLabel}`)
+export async function exportRecapPdf(
+  title: string,
+  periodLabel: string,
+  r: Recap,
+  prev: Recap | null,
+  storeName: string,
+  mode: Deliver = 'download',
+  contact?: StoreContact | null,
+) {
+  const { doc, autoTable, top } = await pdfBase(`Rekap Belanja ${title}`, `${storeName} · ${periodLabel}`, contact)
   const change = prev && prev.total > 0 ? (r.total - prev.total) / prev.total : null
   autoTable(doc, {
-    startY: 32,
+    startY: top,
     body: [
       ['Total belanja', rupiah(r.total), change == null ? '' : `${change >= 0 ? 'Naik' : 'Turun'} ${pct(Math.abs(change))} vs periode lalu`],
       ['Rencana vs realisasi', `${rupiah(r.planned)} -> ${rupiah(r.total)}`, `Selisih ${rupiah(r.total - r.planned)}`],

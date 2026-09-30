@@ -416,6 +416,7 @@ function Detail() {
       <PdfOptionsSheet
         open={pdf}
         onClose={() => setPdf(false)}
+        store={{ address: (profile ?? defaultProfile).store_address, phone: (profile ?? defaultProfile).store_phone }}
         onExport={async (o, how) => {
           try {
             await exportListPdf(list, items, products ?? [], suppliers ?? [], (profile ?? defaultProfile).store_name, how, { ...o, profile: profile ?? defaultProfile })

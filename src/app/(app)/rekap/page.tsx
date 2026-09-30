@@ -8,7 +8,7 @@ import { useCatalog, useCategories, useSuppliers, useProfile, defaultProfile } f
 import { computeRecap, fetchRecapItems, type Group } from '@/lib/recap'
 import { exportRecapExcel, exportRecapPdf } from '@/lib/exporters'
 import { num, pct, rupiah, tgl, tglPanjang } from '@/lib/format'
-import { Button, Card, EmptyState, IconButton, Loading, PageHeader, SectionTitle, Segmented, Sheet, cx } from '@/components/ui'
+import { Button, Card, EmptyState, IconButton, Loading, PageHeader, SectionTitle, Segmented, Sheet, Toggle, cx } from '@/components/ui'
 import { useToast, errMsg } from '@/components/Toast'
 
 type Period = 'minggu' | 'bulan'
@@ -27,6 +27,7 @@ function RekapPageInner() {
   const [period, setPeriod] = useState<Period>('bulan')
   const [anchor, setAnchor] = useState(new Date())
   const [share, setShare] = useState(false)
+  const [showStore, setShowStore] = useState(true)
   const { data: products } = useCatalog()
   const { data: categories } = useCategories()
   const { data: suppliers } = useSuppliers()
@@ -51,6 +52,9 @@ function RekapPageInner() {
   const label = period === 'minggu' ? `Minggu ${tgl(cur.from)} – ${tgl(addDays(cur.to, -1))}` : tglPanjang(cur.from, 'MMMM yyyy')
   const title = period === 'minggu' ? `Minggu ${tgl(cur.from)}` : tglPanjang(cur.from, 'MMMM yyyy')
   const store = (profile ?? defaultProfile).store_name
+  const storeInfo = profile ?? defaultProfile
+  const hasStore = !!(storeInfo.store_address || storeInfo.store_phone)
+  const contact = showStore && hasStore ? { address: storeInfo.store_address, phone: storeInfo.store_phone } : null
 
   async function run(fn: () => Promise<void>) {
     setShare(false)
@@ -138,14 +142,22 @@ function RekapPageInner() {
       )}
 
       <Sheet open={share} onClose={() => setShare(false)} title="Ekspor rekap">
+        <div className="mb-3 rounded-2xl bg-ink-50 px-3">
+          <Toggle
+            checked={showStore && hasStore}
+            onChange={(v) => hasStore && setShowStore(v)}
+            label="Tampilkan alamat & telepon toko di PDF"
+            text={hasStore ? [storeInfo.store_address, storeInfo.store_phone].filter(Boolean).join(' · ') : 'Isi dulu di Pengaturan → Profil toko'}
+          />
+        </div>
         <div className="grid gap-2">
-          <Button variant="outline" onClick={() => run(() => exportRecapPdf(title, label, r, p, store, 'download'))}>
+          <Button variant="outline" onClick={() => run(() => exportRecapPdf(title, label, r, p, store, 'download', contact))}>
             <FileText className="size-4.5" /> Unduh PDF
           </Button>
           <Button variant="outline" onClick={() => run(() => exportRecapExcel(title, r, 'download'))}>
             <FileSpreadsheet className="size-4.5" /> Unduh Excel (data mentah + rekap)
           </Button>
-          <Button onClick={() => run(() => exportRecapPdf(title, label, r, p, store, 'share'))}>
+          <Button onClick={() => run(() => exportRecapPdf(title, label, r, p, store, 'share', contact))}>
             <Share2 className="size-4.5" /> Bagikan PDF ke WhatsApp
           </Button>
         </div>

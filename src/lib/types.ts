@@ -27,6 +27,8 @@ export interface Profile {
   promo_steps: number[]
   promo_extra_fee_pct: number
   affiliate_in_price: boolean
+  store_address: string | null
+  store_phone: string | null
 }
 
 export interface ExtraAttribute {

@@ -174,9 +174,9 @@ function PromoCard({ r, steps, minMargin, extraFee, typeLabel }: { r: Item; step
             <tr className="text-left text-[11px] text-ink-500 uppercase">
               <th className="px-1.5 py-1.5 font-semibold">Diskon</th>
               <th className="px-1.5 py-1.5 text-right font-semibold">Harga promo</th>
-              <th className="px-1.5 py-1.5 text-right font-semibold">{aff ? 'Laba organik' : 'Laba/pcs'}</th>
+              <th className="px-1.5 py-1.5 text-right font-semibold">{aff ? 'Bersih organik' : 'Bersih/pcs'}</th>
               <th className={cx("px-1.5 py-1.5 text-right font-semibold", aff && "hidden sm:table-cell")}>Margin</th>
-              {aff && <th className="px-1.5 py-1.5 text-right font-semibold text-sun-700">Via affiliate</th>}
+              {aff && <th className="px-1.5 py-1.5 text-right font-semibold text-sun-700">Bersih via affiliate {r.cfg.affiliatePct}%</th>}
             </tr>
           </thead>
           <tbody>
@@ -193,7 +193,8 @@ function PromoCard({ r, steps, minMargin, extraFee, typeLabel }: { r: Item; step
                   <td className={cx('px-1.5 py-2 text-right whitespace-nowrap tabular-nums', aff && 'hidden sm:table-cell', tone(b.marginOnCost, minMargin))}>{pct(b.marginOnCost)}</td>
                   {aff && (
                     <td className={cx('px-1.5 py-2 text-right whitespace-nowrap tabular-nums', tone(b.marginAffiliate, minMargin))}>
-                      <b>{rupiah(b.profitAffiliate)}</b> <span className="text-[10px] opacity-75">{pct(b.marginAffiliate)}</span>
+                      <b>{rupiah(b.profitAffiliate)}</b>
+                      <span className="block text-[10px] opacity-75">komisi −{rupiah(b.commission).replace('Rp ', '')}</span>
                     </td>
                   )}
                 </tr>
@@ -213,12 +214,12 @@ function PromoCard({ r, steps, minMargin, extraFee, typeLabel }: { r: Item; step
         )}
         {sug && (
           <p className="text-xs text-ink-600">
-            laba {rupiah(sug.profit)}/pcs · margin {pct(sug.marginOnCost)}
+            harga {rupiah(sug.sell)} − platform {rupiah(sug.fee)} − modal {rupiah(r.cost)} = bersih {rupiah(sug.profit)} ({pct(sug.marginOnCost)})
           </p>
         )}
         {sug && aff && (
           <p className={cx('text-xs', sug.profitAffiliate > 0 ? 'text-sun-700' : 'text-red-600')}>
-            via affiliate: laba {rupiah(sug.profitAffiliate)} · margin {pct(sug.marginAffiliate)}
+            lewat affiliate: komisi {r.cfg.affiliatePct}% −{rupiah(sug.commission)} → bersih {rupiah(sug.profitAffiliate)} ({pct(sug.marginAffiliate)})
           </p>
         )}
         <p className="mt-2 text-xs text-ink-700">{r.a.reason}</p>

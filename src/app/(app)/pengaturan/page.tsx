@@ -9,7 +9,7 @@ import { exportCatalogExcel } from '@/lib/exporters'
 import { pricingCfg } from '@/lib/pricing'
 import { num } from '@/lib/format'
 import type { Category, ExtraAttribute, Supplier } from '@/lib/types'
-import { Button, Card, Confirm, Input, MoneyInput, NumberInput, PageHeader, SectionTitle, Segmented, Sheet } from '@/components/ui'
+import { Button, Card, Confirm, Input, MoneyInput, NumberInput, PageHeader, SectionTitle, Segmented, Sheet, Textarea } from '@/components/ui'
 import { SupplierSheet, waLink } from '@/components/QuickCreate'
 import PricingSettings from '@/components/PricingSettings'
 import { useToast, errMsg } from '@/components/Toast'
@@ -48,6 +48,21 @@ function PengaturanPageInner() {
       <SectionTitle>Profil toko</SectionTitle>
       <Card className="space-y-3.5">
         <Input label="Nama toko" value={f.store_name} onChange={(e) => setF({ ...f, store_name: e.target.value })} />
+        <Textarea
+          label="Alamat toko"
+          className="min-h-20"
+          placeholder="mis. Jl. Melati No. 10, Bekasi"
+          value={f.store_address ?? ''}
+          onChange={(e) => setF({ ...f, store_address: e.target.value || null })}
+        />
+        <Input
+          label="Nomor telepon / WA toko"
+          inputMode="tel"
+          placeholder="08xxxxxxxxxx"
+          value={f.store_phone ?? ''}
+          onChange={(e) => setF({ ...f, store_phone: e.target.value || null })}
+        />
+        <p className="-mt-1 text-xs text-ink-500">Alamat & telepon bisa ditampilkan di PDF daftar belanja dan rekap (atur saat mengunduh PDF).</p>
         <div className="grid grid-cols-2 gap-3">
           <NumberInput label="Minggu cakupan" hint="default" value={Number(f.coverage_weeks)} step={0.5} min={0.5} onChange={(n) => setF({ ...f, coverage_weeks: Math.max(0.5, n) })} />
           <MoneyInput label="Anggaran default" value={f.default_budget} onChange={(n) => setF({ ...f, default_budget: n || null })} />
@@ -88,6 +103,8 @@ function PengaturanPageInner() {
               .from('store_settings')
               .update({
                 store_name: f.store_name.trim() || 'Toko Saya',
+                store_address: f.store_address?.trim() || null,
+                store_phone: f.store_phone?.trim() || null,
                 coverage_weeks: f.coverage_weeks,
                 default_budget: f.default_budget,
                 forecast_method: f.forecast_method,

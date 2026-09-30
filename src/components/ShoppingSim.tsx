@@ -122,6 +122,7 @@ export interface PdfOptions {
   showPrice: boolean
   showSim: boolean
   groupBySupplier: boolean
+  showStore: boolean
 }
 
 const PDF_KEY = 'selikur-pdf-options'
@@ -129,9 +130,9 @@ const PDF_KEY = 'selikur-pdf-options'
 export function loadPdfOptions(): PdfOptions {
   try {
     const v = JSON.parse(localStorage.getItem(PDF_KEY) ?? '')
-    return { showPrice: v.showPrice ?? true, showSim: v.showSim ?? false, groupBySupplier: v.groupBySupplier ?? true }
+    return { showPrice: v.showPrice ?? true, showSim: v.showSim ?? false, groupBySupplier: v.groupBySupplier ?? true, showStore: v.showStore ?? true }
   } catch {
-    return { showPrice: true, showSim: false, groupBySupplier: true }
+    return { showPrice: true, showSim: false, groupBySupplier: true, showStore: true }
   }
 }
 
@@ -140,12 +141,16 @@ export function PdfOptionsSheet({
   open,
   onClose,
   onExport,
+  store,
 }: {
   open: boolean
   onClose: () => void
   onExport: (o: PdfOptions, mode: 'download' | 'share') => Promise<void>
+  /** Alamat & telepon toko dari Pengaturan, untuk keterangan toggle. */
+  store?: { address: string | null; phone: string | null }
 }) {
-  const [o, setO] = useState<PdfOptions>({ showPrice: true, showSim: false, groupBySupplier: true })
+  const [o, setO] = useState<PdfOptions>({ showPrice: true, showSim: false, groupBySupplier: true, showStore: true })
+  const hasStore = !!(store?.address || store?.phone)
   const [busy, setBusy] = useState<'download' | 'share' | null>(null)
   useEffect(() => {
     if (open) setO(loadPdfOptions())
@@ -181,6 +186,12 @@ export function PdfOptionsSheet({
           text={o.showPrice ? 'Ringkasan modal, perkiraan omzet & laba di akhir PDF' : 'Aktifkan acuan harga dulu'}
         />
         <Toggle checked={o.groupBySupplier} onChange={(v) => set({ groupBySupplier: v })} label="Kelompokkan per supplier" text="Memudahkan rute belanja di pasar" />
+        <Toggle
+          checked={o.showStore && hasStore}
+          onChange={(v) => hasStore && set({ showStore: v })}
+          label="Tampilkan alamat & telepon toko"
+          text={hasStore ? [store?.address, store?.phone].filter(Boolean).join(' · ') : 'Isi dulu alamat & telepon di Pengaturan → Profil toko'}
+        />
       </div>
       <div className="mt-4 grid grid-cols-2 gap-2">
         <Button variant="outline" loading={busy === 'download'} onClick={() => run('download')}>

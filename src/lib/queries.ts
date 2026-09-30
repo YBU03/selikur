@@ -75,6 +75,8 @@ export const defaultProfile: Profile = {
   promo_steps: [5, 10, 15, 20, 25, 30],
   promo_extra_fee_pct: 0,
   affiliate_in_price: false,
+  store_address: null,
+  store_phone: null,
 }
 
 export function useCategories() {

@@ -182,6 +182,7 @@ function BelanjaManual() {
       <PdfOptionsSheet
         open={pdf}
         onClose={() => setPdf(false)}
+        store={{ address: prof.store_address, phone: prof.store_phone }}
         onExport={async (o, how) => {
           const now = new Date().toISOString()
           const tempList: ShoppingList = {
