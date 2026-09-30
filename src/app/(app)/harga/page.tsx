@@ -13,7 +13,8 @@ import {
   recommend,
   velocityOf,
   PRICE_STATUS_INFO,
-  SIM_STEPS,
+  simCfg,
+  type SimCfg,
   VELOCITY_INFO,
   type PriceStatus,
   type PricingCfg,
@@ -25,6 +26,8 @@ import type { Product, Variant } from '@/lib/types'
 import { Badge, Button, Card, Chip, Confirm, Input, MoneyInput, PageHeader, SectionTitle, Segmented, Sheet, Thumb, cx, Loading, EmptyState } from '@/components/ui'
 import { PriceBreakdown } from '@/components/PriceSetter'
 import PricingSettings from '@/components/PricingSettings'
+import PromoSim from '@/components/PromoSim'
+import { PercentInput } from '@/components/ProductEditor'
 import { useToast, errMsg } from '@/components/Toast'
 
 interface Row {
@@ -36,6 +39,7 @@ interface Row {
   weekly: number
   rec: Recommendation
   mixed: boolean
+  sim: SimCfg
 }
 
 const PAGE = 3
@@ -63,7 +67,7 @@ function StatusBadge({ s }: { s: PriceStatus }) {
 function SimTable({
   cost,
   cfg,
-  steps = SIM_STEPS,
+  steps = [50, 60, 70, 80, 90, 100],
   current,
   recMarkup,
   selected,
@@ -182,7 +186,7 @@ function ProductSimCard({ r, onApply, onOpen }: { r: Row; onApply: () => void; o
         </div>
       </div>
       <div className="px-3 pt-2">
-        <SimTable cost={r.cost} cfg={r.cfg} current={r.current} recMarkup={r.rec.markup} />
+        <SimTable cost={r.cost} cfg={r.cfg} steps={r.sim.steps} current={r.current} recMarkup={r.rec.markup} />
       </div>
       <div className="m-3 rounded-2xl bg-gradient-to-br from-leaf-500/10 to-brand-50 p-3.5 ring-1 ring-leaf-500/20">
         <div className="flex items-start justify-between gap-3">
@@ -212,7 +216,7 @@ function ProductSimCard({ r, onApply, onOpen }: { r: Row; onApply: () => void; o
   )
 }
 
-function Matrix({ rows, onOpen }: { rows: Row[]; onOpen: (r: Row) => void }) {
+function Matrix({ rows, onOpen, steps }: { rows: Row[]; onOpen: (r: Row) => void; steps: number[] }) {
   return (
     <div className="-mx-4 overflow-x-auto px-4 pb-2">
       <table className="min-w-max border-separate border-spacing-0 text-sm">
@@ -221,7 +225,7 @@ function Matrix({ rows, onOpen }: { rows: Row[]; onOpen: (r: Row) => void }) {
             <th className="sticky left-0 z-10 rounded-tl-2xl bg-ink-100 px-3 py-2 text-left font-semibold">Produk</th>
             <th className="bg-ink-100 px-3 py-2 text-right font-semibold">Modal</th>
             <th className="bg-ink-100 px-3 py-2 text-right font-semibold">Sekarang</th>
-            {SIM_STEPS.map((m) => (
+            {steps.map((m) => (
               <th key={m} className="bg-ink-100 px-3 py-2 text-right font-semibold">
                 {m}%
               </th>
@@ -231,7 +235,7 @@ function Matrix({ rows, onOpen }: { rows: Row[]; onOpen: (r: Row) => void }) {
         </thead>
         <tbody>
           {rows.map((r, i) => {
-            const near = nearestStep(r.cost, r.current, r.cfg, SIM_STEPS)
+            const near = nearestStep(r.cost, r.current, r.cfg, steps)
             const now = breakdown(r.cost, r.current, r.cfg)
             const sar = breakdown(r.cost, r.rec.price, r.cfg)
             const bg = i % 2 ? 'bg-ink-50' : 'bg-white'
@@ -248,7 +252,7 @@ function Matrix({ rows, onOpen }: { rows: Row[]; onOpen: (r: Row) => void }) {
                   <b>{r.current ? rupiah(r.current) : '–'}</b>
                   {r.current > 0 && <p className={cx('text-[11px]', now.profit > 0 ? 'text-leaf-600' : 'text-red-600')}>{rupiah(now.profit)}</p>}
                 </td>
-                {SIM_STEPS.map((m) => {
+                {steps.map((m) => {
                   const s = priceFromMarkup(r.cost, m, r.cfg)
                   const b = breakdown(r.cost, s, r.cfg)
                   return (
@@ -274,7 +278,7 @@ function Matrix({ rows, onOpen }: { rows: Row[]; onOpen: (r: Row) => void }) {
   )
 }
 
-async function exportSimulation(rows: Row[]) {
+async function exportSimulation(rows: Row[], steps: number[]) {
   const ExcelJS = (await import('exceljs')).default
   const { deliver } = await import('@/lib/exporters')
   const wb = new ExcelJS.Workbook()
@@ -284,7 +288,7 @@ async function exportSimulation(rows: Row[]) {
     { header: 'Modal', key: 'cost', width: 12 },
     { header: 'Harga Sekarang', key: 'cur', width: 15 },
     { header: 'Laba Sekarang', key: 'curp', width: 14 },
-    ...SIM_STEPS.flatMap((m) => [
+    ...steps.flatMap((m) => [
       { header: `Harga ${m}%`, key: `h${m}`, width: 13 },
       { header: `Laba ${m}%`, key: `l${m}`, width: 12 },
     ]),
@@ -304,7 +308,7 @@ async function exportSimulation(rows: Row[]) {
       status: PRICE_STATUS_INFO[r.rec.status].label,
       vel: VELOCITY_INFO[r.rec.velocity].label,
     }
-    for (const m of SIM_STEPS) {
+    for (const m of steps) {
       const s = priceFromMarkup(r.cost, m, r.cfg)
       row[`h${m}`] = s
       row[`l${m}`] = breakdown(r.cost, s, r.cfg).profit
@@ -331,7 +335,7 @@ function HargaPageInner() {
   const [view, setView] = useState<'kartu' | 'tabel'>('kartu')
   const [filter, setFilter] = useState<PriceStatus | 'all' | 'ubah'>('all')
   const [q, setQ] = useState('')
-  const [limit, setLimit] = useState(PAGE)
+  const [limit, setLimit] = useState(() => (typeof window !== 'undefined' && window.innerWidth >= 1024 ? 6 : PAGE))
   const [settings, setSettings] = useState(false)
   const [calc, setCalc] = useState(false)
   const [pick, setPick] = useState<Product | null>(null)
@@ -339,6 +343,9 @@ function HargaPageInner() {
   const [cost, setCost] = useState(50000)
   const [sell, setSell] = useState(0)
   const cfg = pricingCfg(profile)
+  const sim = simCfg(profile)
+  const [tab, setTab] = useState<'harga' | 'promo'>('harga')
+  const [page] = useState(() => (typeof window !== 'undefined' && window.innerWidth >= 1024 ? 6 : PAGE))
 
   const all = useMemo<Row[]>(() => {
     const list = (products ?? []).filter((p) => p.variants.length && p.status !== 'inactive' && !p._pending)
@@ -357,10 +364,12 @@ function HargaPageInner() {
         current: v.sell_price,
         cfg: c,
         weekly: weeklies[i],
-        rec: recommend(v.buy_price, v.sell_price, c, vel),
+        rec: recommend(v.buy_price, v.sell_price, c, vel, sim),
+        sim,
         mixed: p.variants.some((x) => x.sell_price !== v.sell_price || x.buy_price !== v.buy_price),
       }
     })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [products, buckets, profile])
 
   const counts = useMemo(() => {
@@ -385,7 +394,7 @@ function HargaPageInner() {
       for (const r of target) {
         const sameCost = r.p.variants.every((x) => x.buy_price === r.cost)
         for (const x of r.p.variants) {
-          const price = sameCost ? r.rec.price : recommend(x.buy_price, x.sell_price, r.cfg, r.rec.velocity).price
+          const price = sameCost ? r.rec.price : recommend(x.buy_price, x.sell_price, r.cfg, r.rec.velocity, sim).price
           const { error } = await supabase
             .from('variants')
             .update({ sell_price: price, price_mode: 'manual', markup_pct: null })
@@ -436,17 +445,36 @@ function HargaPageInner() {
         ))}
       </div>
 
-      <Card className="bg-brand-50/60 ring-brand-100">
-        <p className="text-sm text-ink-700">
-          <b>Cara baca saran:</b> margin aman <b>50–100% dari modal</b> (setelah potongan platform{cfg.affiliatePct ? ' & affiliate' : ''}). Produk <b>laris</b> disarankan ±90%,{' '}
-          <b>normal</b> ±70%, <b>lambat</b> ±55%, lalu dibulatkan ke harga cantik (…900).
-        </p>
-      </Card>
+      <Segmented
+        className="mb-4"
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'harga', label: 'Harga Jual' },
+          { value: 'promo', label: 'Promo & Diskon' },
+        ]}
+      />
+
+      {tab === 'harga' && (
+        <Card className="bg-brand-50/60 ring-brand-100">
+          <p className="text-sm text-ink-700">
+            <b>Cara baca saran:</b> margin aman{' '}
+            <b>
+              {sim.safeMin}–{sim.safeMax}% dari modal
+            </b>{' '}
+            (setelah potongan platform{cfg.affiliatePct ? ' & affiliate' : ''}). Produk <b>laris</b> disarankan ±{sim.targets.laris}%, <b>normal</b> ±{sim.targets.normal}%,{' '}
+            <b>lambat</b> ±{sim.targets.lambat}%, lalu dibulatkan ke harga cantik (…900).{' '}
+            <button onClick={() => setSettings(true)} className="font-semibold text-brand-700 underline">
+              Ubah persen
+            </button>
+          </p>
+        </Card>
+      )}
 
       <div className="mt-4 flex gap-2">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-4 size-4.5 -translate-y-1/2 text-ink-400" />
-          <Input className="pl-11" placeholder="Cari produk" value={q} onChange={(e) => (setQ(e.target.value), setLimit(PAGE))} />
+          <Input className="pl-11" placeholder="Cari produk" value={q} onChange={(e) => (setQ(e.target.value), setLimit(page))} />
         </div>
         <Segmented
           className="w-[7.5rem] shrink-0"
@@ -458,9 +486,23 @@ function HargaPageInner() {
           ]}
         />
       </div>
+      {tab === 'promo' ? (
+        <div className="mt-4">
+          <PromoSim
+            key={`${q}-${view}`}
+            rows={all.filter((r) => !q || r.p.name.toLowerCase().includes(q.toLowerCase()))}
+            steps={(profile.promo_steps?.length ? profile.promo_steps : [5, 10, 15, 20, 25, 30]).map(Number)}
+            minMargin={Number(profile.promo_min_margin_pct ?? 20)}
+            extraFee={Number(profile.promo_extra_fee_pct ?? 0)}
+            view={view}
+            pageSize={page}
+          />
+        </div>
+      ) : (
+      <>
       <div className="no-scrollbar -mx-4 mt-3 flex gap-2 overflow-x-auto px-4">
         {filterChips.map((c) => (
-          <Chip key={c.v} active={filter === c.v} onClick={() => (setFilter(c.v), setLimit(PAGE))}>
+          <Chip key={c.v} active={filter === c.v} onClick={() => (setFilter(c.v), setLimit(page))}>
             {c.label} <span className="opacity-60">{c.n}</span>
           </Chip>
         ))}
@@ -471,23 +513,25 @@ function HargaPageInner() {
         {!isPending && rows.length === 0 && <EmptyState title="Tidak ada produk" text="Ubah filter atau tambah produk dengan harga kulak." />}
 
         {view === 'kartu' ? (
-          <div className="space-y-3">
+          <>
+          <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
             {rows.slice(0, limit).map((r) => (
               <ProductSimCard key={r.p.id} r={r} onOpen={() => setPick(r.p)} onApply={() => setConfirm([r])} />
             ))}
+          </div>
             {rows.length > limit && (
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" onClick={() => setLimit(limit + PAGE)}>
-                  <ChevronDown className="size-4" /> {Math.min(PAGE, rows.length - limit)} produk lagi
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <Button variant="outline" onClick={() => setLimit(limit + page)}>
+                  <ChevronDown className="size-4" /> {Math.min(page, rows.length - limit)} produk lagi
                 </Button>
                 <Button variant="soft" onClick={() => setLimit(rows.length)}>
                   Tampilkan semua ({rows.length})
                 </Button>
               </div>
             )}
-          </div>
+          </>
         ) : (
-          rows.length > 0 && <Matrix rows={rows} onOpen={(r) => setPick(r.p)} />
+          rows.length > 0 && <Matrix rows={rows} steps={sim.steps} onOpen={(r) => setPick(r.p)} />
         )}
       </div>
 
@@ -498,10 +542,12 @@ function HargaPageInner() {
               <Wand2 className="size-4.5" /> Pakai saran untuk {toApply.length} produk{filter !== 'all' ? ' di filter ini' : ''}
             </Button>
           )}
-          <Button variant="outline" onClick={() => exportSimulation(rows).catch((e) => toast(errMsg(e), 'error'))}>
+          <Button variant="outline" onClick={() => exportSimulation(rows, sim.steps).catch((e) => toast(errMsg(e), 'error'))}>
             <FileSpreadsheet className="size-4.5" /> Ekspor simulasi ke Excel
           </Button>
         </div>
+      )}
+      </>
       )}
 
       <SectionTitle>Kalkulator cepat</SectionTitle>
@@ -517,7 +563,7 @@ function HargaPageInner() {
         <Card>
           <MoneyInput label="Harga kulakan (modal)" value={cost} onChange={setCost} />
           <div className="mt-3">
-            <SimTable cost={cost} cfg={cfg} recMarkup={recommend(cost, 0, cfg, 'normal').markup} />
+            <SimTable cost={cost} cfg={cfg} steps={sim.steps} recMarkup={recommend(cost, 0, cfg, 'normal', sim).markup} />
           </div>
           <div className="mt-4 border-t border-ink-100 pt-4">
             <MoneyInput label="Atau tulis harga jual sendiri" value={sell} onChange={setSell} />
@@ -624,7 +670,20 @@ function ProductPricingSheet({ product, onClose }: { product: Product | null; on
       />
       <div className="mt-3">
         {mode === 'markup' ? (
-          <SimTable cost={v.buy_price} cfg={cfg} steps={MARKUP_PRESETS} current={v.sell_price} selected={markup} onPick={setMarkup} />
+          <>
+            <SimTable
+              cost={v.buy_price}
+              cfg={cfg}
+              steps={[...new Set([...MARKUP_PRESETS, ...simCfg(profile).steps])].sort((a, b) => a - b)}
+              current={v.sell_price}
+              selected={markup}
+              onPick={setMarkup}
+            />
+            <div className="mt-3 grid grid-cols-[1fr_auto] items-end gap-3">
+              <PercentInput label="Atau ketik persen sendiri" max={500} value={markup} onChange={setMarkup} />
+              <p className="pb-3 text-sm font-bold text-brand-800 tabular-nums">{markup != null ? rupiah(priceFromMarkup(v.buy_price, markup, cfg)) : '–'}</p>
+            </div>
+          </>
         ) : (
           <MoneyInput value={manual} onChange={setManual} />
         )}

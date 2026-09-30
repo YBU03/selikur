@@ -3,13 +3,14 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { Home, Package, Camera, ShoppingBasket, LayoutGrid, CloudOff, RefreshCw, Hourglass, ShieldX, LogOut, Lock } from 'lucide-react'
+import { Home, Package, Camera, ShoppingBasket, LayoutGrid, CloudOff, RefreshCw, Hourglass, ShieldX, LogOut, Lock, LineChart, ClipboardList, Percent, CalendarDays, BarChart3, Users, Settings } from 'lucide-react'
 import type { Session } from '@supabase/supabase-js'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { onOutboxChange, flush } from '@/lib/outbox'
 import { Button, cx, Spinner } from './ui'
-import { useMe } from '@/lib/queries'
+import { useMe, useProfile } from '@/lib/queries'
+import { ROLE_LABEL } from '@/lib/types'
 import { useRole } from '@/lib/roles'
 import { useReminders } from '@/lib/reminders'
 
@@ -29,7 +30,7 @@ const tabs = [
 export function BottomNav() {
   const path = usePathname()
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 pb-[var(--safe-bottom)]">
+    <nav className="fixed inset-x-0 bottom-0 z-40 pb-[var(--safe-bottom)] lg:hidden">
       <div className="mx-auto max-w-xl px-3 pb-3">
         <div className="flex items-end justify-around rounded-[1.75rem] bg-white/95 px-2 pt-2 pb-2 shadow-[0_-2px_30px_-8px_rgb(8_62_50/0.18)] ring-1 ring-ink-100 backdrop-blur-xl">
           {tabs.map((t) => {
@@ -77,7 +78,7 @@ function StatusBar() {
   }, [])
   if (online && pending === 0) return null
   return (
-    <div className="sticky top-0 z-40 -mx-4 flex items-center justify-center gap-2 bg-ink-900 px-4 py-1.5 text-xs font-medium text-white">
+    <div className="sticky top-0 z-40 -mx-4 flex items-center lg:-mx-8 justify-center gap-2 bg-ink-900 px-4 py-1.5 text-xs font-medium text-white">
       {!online ? (
         <>
           <CloudOff className="size-3.5" /> Offline — data tersimpan di HP{pending ? `, ${pending} perubahan menunggu sinkron` : ''}
@@ -195,13 +196,120 @@ function Reminders() {
   return null
 }
 
+type SideItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }>; admin?: boolean; match?: (p: string) => boolean }
+
+const sideGroups: { title: string; admin?: boolean; items: SideItem[] }[] = [
+  {
+    title: 'Utama',
+    items: [
+      { href: '/', label: 'Beranda', icon: Home, match: (p) => p === '/' },
+      { href: '/produk', label: 'Katalog produk', icon: Package },
+      { href: '/tangkap', label: 'Foto produk baru', icon: Camera },
+    ],
+  },
+  {
+    title: 'Perencanaan',
+    items: [
+      { href: '/forecast', label: 'Forecast', icon: LineChart },
+      { href: '/penjualan', label: 'Penjualan', icon: ClipboardList },
+      { href: '/harga', label: 'Harga & promo', icon: Percent, admin: true },
+    ],
+  },
+  {
+    title: 'Belanja',
+    items: [
+      { href: '/belanja', label: 'Daftar belanja', icon: ShoppingBasket },
+      { href: '/jadwal', label: 'Jadwal', icon: CalendarDays },
+      { href: '/rekap', label: 'Rekap & laporan', icon: BarChart3, admin: true },
+    ],
+  },
+  {
+    title: 'Admin',
+    admin: true,
+    items: [
+      { href: '/pengguna', label: 'Kelola pengguna', icon: Users, admin: true },
+      { href: '/pengaturan', label: 'Pengaturan', icon: Settings, admin: true },
+    ],
+  },
+]
+
+/** Navigasi samping untuk layar lebar (desktop / tablet landscape). */
+function Sidebar() {
+  const path = usePathname()
+  const router = useRouter()
+  const { isAdmin, me } = useRole()
+  const { data: store } = useProfile()
+  return (
+    <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col bg-gradient-to-b from-brand-900 to-brand-800 text-white lg:flex">
+      <Link href="/" className="flex items-center gap-3 px-5 pt-6 pb-5">
+        <span className="rounded-2xl bg-white p-1.5 shadow-lift">
+          <Image src="/logo-mark.png" alt="" width={36} height={36} className="rounded-xl" />
+        </span>
+        <span className="min-w-0">
+          <span className="block text-lg leading-tight font-extrabold tracking-tight">Selikur</span>
+          <span className="block truncate text-xs text-brand-200">{store?.store_name ?? 'Kulakan cerdas'}</span>
+        </span>
+      </Link>
+      <Link
+        href="/tangkap"
+        className="mx-4 mb-4 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-sun-400 to-sun-600 py-3 text-sm font-bold shadow-sun transition hover:brightness-105"
+      >
+        <Camera className="size-4.5" /> Foto produk
+      </Link>
+      <nav className="flex-1 space-y-4 overflow-y-auto px-3 pb-4">
+        {sideGroups
+          .filter((g) => !g.admin || isAdmin)
+          .map((g) => (
+            <div key={g.title}>
+              <p className="px-3 pb-1 text-[11px] font-semibold tracking-wider text-brand-300 uppercase">{g.title}</p>
+              {g.items
+                .filter((it) => !it.admin || isAdmin)
+                .map((it) => {
+                  const active = it.match ? it.match(path) : path.startsWith(it.href)
+                  const I = it.icon
+                  return (
+                    <Link
+                      key={it.href}
+                      href={it.href}
+                      className={cx(
+                        'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition',
+                        active ? 'bg-white text-brand-900 shadow-soft' : 'text-brand-100 hover:bg-white/10 hover:text-white',
+                      )}
+                    >
+                      <I className="size-4.5" /> {it.label}
+                    </Link>
+                  )
+                })}
+            </div>
+          ))}
+      </nav>
+      <div className="border-t border-white/10 p-4">
+        <p className="truncate text-sm font-semibold">{me?.full_name ?? me?.email}</p>
+        <p className="truncate text-xs text-brand-200">{me ? ROLE_LABEL[me.role] : ''}</p>
+        <button
+          onClick={async () => {
+            await supabase.auth.signOut()
+            router.replace('/masuk')
+          }}
+          className="mt-3 flex items-center gap-2 text-xs font-semibold text-brand-200 hover:text-white"
+        >
+          <LogOut className="size-3.5" /> Keluar
+        </button>
+      </div>
+    </aside>
+  )
+}
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <AuthGuard>
       <Reminders />
-      <div className="pb-nav mx-auto min-h-dvh max-w-xl px-4">
-        <StatusBar />
-        {children}
+      <Sidebar />
+      <div className="lg:pl-64">
+        <div className="pb-nav mx-auto min-h-dvh max-w-xl px-4 lg:max-w-7xl lg:px-8 lg:pb-12">
+          <StatusBar />
+          {children}
+        </div>
       </div>
       <BottomNav />
     </AuthGuard>

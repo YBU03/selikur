@@ -59,7 +59,7 @@ export default function BelanjaPage() {
         ]}
       />
 
-      <div className="mt-4 space-y-3">
+      <div className="mt-4 grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
         {isPending && Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-3xl" />)}
         {!isPending && shown.length === 0 && (
           <EmptyState

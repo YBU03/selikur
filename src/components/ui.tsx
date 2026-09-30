@@ -104,7 +104,7 @@ export function PageHeader({
 }) {
   const router = useRouter()
   return (
-    <header className="sticky top-0 z-30 -mx-4 mb-4 flex items-center gap-2 bg-ink-50/85 px-4 pt-[max(env(safe-area-inset-top),0.75rem)] pb-3 backdrop-blur-lg">
+    <header className="sticky top-0 z-30 -mx-4 mb-4 flex items-center gap-2 bg-ink-50/85 px-4 pt-[max(env(safe-area-inset-top),0.75rem)] pb-3 backdrop-blur-lg lg:-mx-8 lg:mb-6 lg:px-8 lg:pt-6">
       {back && (
         <IconButton
           aria-label="Kembali"
@@ -115,7 +115,7 @@ export function PageHeader({
         </IconButton>
       )}
       <div className="min-w-0 flex-1">
-        <h1 className="truncate text-xl font-bold tracking-tight text-ink-900">{title}</h1>
+        <h1 className="truncate text-xl font-bold tracking-tight text-ink-900 lg:text-2xl">{title}</h1>
         {subtitle && <p className="truncate text-sm text-ink-500">{subtitle}</p>}
       </div>
       {action}

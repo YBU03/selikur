@@ -50,9 +50,9 @@ export default function Beranda() {
   const greet = hour < 11 ? 'Selamat pagi' : hour < 15 ? 'Selamat siang' : hour < 19 ? 'Selamat sore' : 'Selamat malam'
 
   return (
-    <div className="pt-[max(env(safe-area-inset-top),1rem)]">
-      <header className="mb-5 flex items-center gap-3">
-        <Image src="/logo-mark.png" alt="" width={44} height={44} className="rounded-2xl shadow-soft ring-1 ring-ink-100" />
+    <div className="pt-[max(env(safe-area-inset-top),1rem)] lg:pt-8">
+      <header className="mb-5 flex items-center gap-3 lg:mb-6">
+        <Image src="/logo-mark.png" alt="" width={44} height={44} className="rounded-2xl shadow-soft ring-1 ring-ink-100 lg:hidden" />
         <div className="min-w-0 flex-1">
           <p className="text-sm text-ink-500">{greet},</p>
           <p className="truncate text-lg font-bold tracking-tight">{p.store_name}</p>
@@ -94,6 +94,8 @@ export default function Beranda() {
         </Link>
       )}
 
+      <div className="lg:grid lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:items-start lg:gap-6">
+      <div>
       {/* Hero kebutuhan kulakan */}
       <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-brand-700 via-brand-800 to-brand-900 p-5 text-white shadow-lift">
         <div className="pointer-events-none absolute -top-16 -right-10 size-48 rounded-full bg-leaf-500/30 blur-2xl" />
@@ -213,6 +215,8 @@ export default function Beranda() {
         </Link>
       </div>
 
+      </div>
+      <div className="lg:sticky lg:top-6">
       {/* Varian kritis */}
       {perlu.length > 0 && (
         <>
@@ -256,6 +260,8 @@ export default function Beranda() {
             <span className="text-xs font-semibold text-ink-700">{m.label}</span>
           </Link>
         ))}
+      </div>
+      </div>
       </div>
     </div>
   )

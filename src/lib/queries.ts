@@ -65,6 +65,15 @@ export const defaultProfile: Profile = {
   default_markup_pct: 50,
   fee_basis: 'price',
   price_rounding: 0,
+  sim_steps: [50, 60, 70, 80, 90, 100],
+  safe_min_pct: 50,
+  safe_max_pct: 100,
+  target_fast_pct: 90,
+  target_normal_pct: 70,
+  target_slow_pct: 55,
+  promo_min_margin_pct: 20,
+  promo_steps: [5, 10, 15, 20, 25, 30],
+  promo_extra_fee_pct: 0,
 }
 
 export function useCategories() {

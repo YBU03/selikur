@@ -104,7 +104,7 @@ export default function ForecastPage() {
         ))}
       </div>
 
-      <div className="mt-3 space-y-2">
+      <div className="mt-3 grid gap-2 lg:grid-cols-2 lg:gap-3 2xl:grid-cols-3">
         {isPending && <Loading />}
         {!isPending && forecasts.length === 0 && (
           <EmptyState title="Belum ada produk aktif" text="Tambahkan produk & varian dulu." action={<ButtonLink href="/produk/baru" size="sm">Tambah produk</ButtonLink>} />

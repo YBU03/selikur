@@ -100,7 +100,7 @@ function Catalog() {
         ))}
       </div>
 
-      <div className="mt-4 space-y-2.5">
+      <div className="mt-4 grid gap-2.5 lg:grid-cols-2 lg:gap-3 2xl:grid-cols-3">
         {isPending &&
           Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-[84px] rounded-3xl" />)}
         {!isPending && rows.length === 0 && (

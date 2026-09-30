@@ -17,6 +17,15 @@ export interface Profile {
   default_markup_pct: number
   fee_basis: 'price' | 'cost_margin'
   price_rounding: number
+  sim_steps: number[]
+  safe_min_pct: number
+  safe_max_pct: number
+  target_fast_pct: number
+  target_normal_pct: number
+  target_slow_pct: number
+  promo_min_margin_pct: number
+  promo_steps: number[]
+  promo_extra_fee_pct: number
 }
 
 export interface ExtraAttribute {

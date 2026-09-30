@@ -84,10 +84,39 @@ export function impliedMarkup(cost: number, sell: number, cfg: PricingCfg) {
 
 // ================= Simulasi & saran harga =================
 
-/** Kolom simulasi seperti file Excel: markup 50%–100% dari modal. */
+/** Nilai bawaan — semuanya bisa diubah admin di Pengaturan harga. */
 export const SIM_STEPS = [50, 60, 70, 80, 90, 100]
 export const SAFE_MIN = 50
 export const SAFE_MAX = 100
+
+export interface SimCfg {
+  steps: number[]
+  safeMin: number
+  safeMax: number
+  targets: Record<Velocity, number>
+}
+
+type SimProfile = Partial<
+  Pick<Profile, 'sim_steps' | 'safe_min_pct' | 'safe_max_pct' | 'target_fast_pct' | 'target_normal_pct' | 'target_slow_pct'>
+>
+
+export function simCfg(p: SimProfile): SimCfg {
+  const steps = (p.sim_steps?.length ? p.sim_steps : SIM_STEPS).map(Number).sort((a, b) => a - b)
+  const normal = Number(p.target_normal_pct ?? 70)
+  return {
+    steps,
+    safeMin: Number(p.safe_min_pct ?? SAFE_MIN),
+    safeMax: Number(p.safe_max_pct ?? SAFE_MAX),
+    targets: {
+      laris: Number(p.target_fast_pct ?? 90),
+      normal,
+      lambat: Number(p.target_slow_pct ?? 55),
+      baru: normal,
+    },
+  }
+}
+
+export const DEFAULT_SIM = simCfg({})
 
 /** Harga "cantik" marketplace: dibulatkan ke atas lalu berakhiran 900 (mis. 67.200 → 67.900). */
 export function prettyPrice(n: number) {
@@ -100,11 +129,11 @@ export function prettyPrice(n: number) {
 
 export type Velocity = 'laris' | 'normal' | 'lambat' | 'baru'
 
-export const VELOCITY_INFO: Record<Velocity, { label: string; target: number; reason: string }> = {
-  laris: { label: 'Laris', target: 90, reason: 'Penjualannya di atas rata-rata toko, jadi masih ada ruang menaikkan margin.' },
-  normal: { label: 'Normal', target: 70, reason: 'Penjualan setara rata-rata toko; margin tengah menjaga harga tetap bersaing.' },
-  lambat: { label: 'Lambat', target: 55, reason: 'Penjualan di bawah rata-rata; margin tipis tapi aman membantu barang cepat berputar.' },
-  baru: { label: 'Belum ada data', target: 70, reason: 'Belum ada data penjualan; mulai dari margin tengah lalu sesuaikan setelah ada penjualan.' },
+export const VELOCITY_INFO: Record<Velocity, { label: string; reason: string }> = {
+  laris: { label: 'Laris', reason: 'Penjualannya di atas rata-rata toko, jadi masih ada ruang menaikkan margin.' },
+  normal: { label: 'Normal', reason: 'Penjualan setara rata-rata toko; margin tengah menjaga harga tetap bersaing.' },
+  lambat: { label: 'Lambat', reason: 'Penjualan di bawah rata-rata; margin tipis tapi aman membantu barang cepat berputar.' },
+  baru: { label: 'Belum ada data', reason: 'Belum ada data penjualan; mulai dari margin tengah lalu sesuaikan setelah ada penjualan.' },
 }
 
 /** Kecepatan jual produk dibanding rata-rata produk lain yang punya data. */
@@ -125,18 +154,19 @@ export const PRICE_STATUS_INFO: Record<PriceStatus, { label: string; tone: 'red'
   premium: { label: 'Premium', tone: 'leaf' },
 }
 
-export function priceStatus(cost: number, sell: number, cfg: PricingCfg): PriceStatus {
+export function priceStatus(cost: number, sell: number, cfg: PricingCfg, sim: SimCfg = DEFAULT_SIM): PriceStatus {
   const b = breakdown(cost, sell, cfg)
   if (b.profit <= 0) return 'rugi'
   const m = (b.marginOnCost ?? 0) * 100
-  if (m < SAFE_MIN - 0.5) return 'murah'
-  if (m > SAFE_MAX + 0.5) return 'premium'
+  if (m < sim.safeMin - 0.5) return 'murah'
+  if (m > sim.safeMax + 0.5) return 'premium'
   return 'aman'
 }
 
 export interface Recommendation {
   price: number
   markup: number
+  target: number
   velocity: Velocity
   status: PriceStatus
   /** Harga sekarang sudah dekat saran (selisih ≤ 5%). */
@@ -145,26 +175,99 @@ export interface Recommendation {
 }
 
 /**
- * Saran harga jual per produk:
- * target markup menurut kecepatan jual (laris 90%, normal 70%, lambat 55%),
- * dijaga di rentang aman 50–100%, lalu dibulatkan ke harga cantik.
+ * Saran harga jual per produk: target margin menurut kecepatan jual,
+ * dijaga di rentang aman, lalu dibulatkan ke harga cantik.
  */
-export function recommend(cost: number, current: number, cfg: PricingCfg, velocity: Velocity): Recommendation {
-  const target = VELOCITY_INFO[velocity].target
-  const floor = priceFromMarkup(cost, SAFE_MIN, { ...cfg, rounding: 0 })
-  const ceil = priceFromMarkup(cost, SAFE_MAX, { ...cfg, rounding: 0 })
-  let price = prettyPrice(priceFromMarkup(cost, target, { ...cfg, rounding: 0 }))
+export function recommend(cost: number, current: number, cfg: PricingCfg, velocity: Velocity, sim: SimCfg = DEFAULT_SIM): Recommendation {
+  const target = sim.targets[velocity]
+  const raw = { ...cfg, rounding: 0 as Rounding }
+  const floor = priceFromMarkup(cost, sim.safeMin, raw)
+  const ceil = priceFromMarkup(cost, sim.safeMax, raw)
+  let price = prettyPrice(priceFromMarkup(cost, target, raw))
   if (price < floor) price = prettyPrice(floor)
   if (price > ceil) price = Math.max(prettyPrice(floor), Math.floor(ceil / 1000) * 1000 - 100)
   const b = breakdown(cost, price, cfg)
-  const status = priceStatus(cost, current, cfg)
+  const status = priceStatus(cost, current, cfg, sim)
   const fits = current > 0 && Math.abs(current - price) / price <= 0.05
   let message: string
   if (!current) message = 'Harga jual belum diisi.'
   else if (status === 'rugi') message = 'Harga sekarang rugi setelah dipotong platform. Naikkan harga atau cari modal lebih murah.'
-  else if (status === 'murah') message = `Laba sekarang di bawah ${SAFE_MIN}% dari modal. Naikkan ke harga saran, atau kalau harga pasar tidak memungkinkan, coba nego modal ke supplier.`
-  else if (status === 'premium') message = 'Harga sekarang di atas simulasi 100%. Boleh dipertahankan kalau tetap laku & bersaing.'
+  else if (status === 'murah')
+    message = `Laba sekarang di bawah ${sim.safeMin}% dari modal. Naikkan ke harga saran, atau kalau harga pasar tidak memungkinkan, coba nego modal ke supplier.`
+  else if (status === 'premium') message = `Harga sekarang di atas ${sim.safeMax}%. Boleh dipertahankan kalau tetap laku & bersaing.`
   else if (fits) message = 'Harga sekarang sudah pas dengan saran.'
   else message = current > price ? 'Harga sekarang aman dan lebih tinggi dari saran.' : 'Harga sekarang aman; ada ruang naik ke harga saran.'
-  return { price, markup: Math.round((b.marginOnCost ?? 0) * 100), velocity, status, fits, message }
+  return { price, markup: Math.round((b.marginOnCost ?? 0) * 100), target, velocity, status, fits, message }
+}
+
+// ================= Promo: flash sale & voucher =================
+
+export type PromoType = 'flash' | 'voucher' | 'diskon'
+
+export const PROMO_INFO: Record<PromoType, { label: string; range: [number, number]; ideal: number; why: string }> = {
+  flash: {
+    label: 'Flash Sale',
+    range: [10, 20],
+    ideal: 15,
+    why: 'Flash sale butuh potongan yang terasa (10–20%) supaya menarik di halaman promo, tapi hanya berlaku singkat dan stok terbatas, jadi margin tipis masih bisa diterima.',
+  },
+  voucher: {
+    label: 'Voucher Toko',
+    range: [5, 10],
+    ideal: 10,
+    why: 'Voucher toko cukup 5–10% dengan minimal belanja; tujuannya menaikkan jumlah barang per pesanan, bukan banting harga.',
+  },
+  diskon: {
+    label: 'Diskon Harian',
+    range: [3, 8],
+    ideal: 5,
+    why: 'Diskon harian dipasang terus-menerus, jadi kecil saja (3–8%) agar harga coret terlihat tanpa menggerus laba setiap hari.',
+  },
+}
+
+export interface PromoResult {
+  /** Diskon maksimal agar laba masih ≥ batas minimum promo. */
+  safe: number
+  /** Diskon maksimal sebelum rugi (impas). */
+  breakEven: number
+  /** Diskon yang disarankan untuk jenis promo ini. */
+  suggested: number
+  ok: boolean
+  reason: string
+}
+
+/** Laba setelah diskon; potongan platform/affiliate + biaya program promo dihitung dari harga setelah diskon. */
+export function promoBreakdown(cost: number, price: number, discountPct: number, cfg: PricingCfg, extraFeePct = 0) {
+  const sell = price * (1 - discountPct / 100)
+  return breakdown(cost, sell, { ...cfg, feePct: cfg.feePct + extraFeePct })
+}
+
+export function analyzePromo(cost: number, price: number, cfg: PricingCfg, type: PromoType, minMarginPct: number, extraFeePct = 0): PromoResult {
+  const cut = (cfg.feePct + cfg.affiliatePct + extraFeePct) / 100
+  const netFull = price * (1 - cut)
+  const dFor = (profit: number) => (netFull > 0 ? Math.max(0, (1 - (cost + profit) / netFull) * 100) : 0)
+  const safe = Math.floor(dFor((cost * minMarginPct) / 100))
+  const breakEven = Math.floor(dFor(0))
+  const [lo] = PROMO_INFO[type].range
+  const { label, ideal } = PROMO_INFO[type]
+  // titik ideal per jenis promo; turun ke kelipatan 5 terdekat bila margin tidak cukup
+  let suggested = Math.min(ideal, Math.floor(safe / 5) * 5 || safe)
+  if (safe >= lo && suggested < lo) suggested = lo
+  const ok = suggested >= lo
+  let reason: string
+  if (!price || !cost) {
+    suggested = 0
+    reason = 'Isi harga kulak dan harga jual dulu.'
+  } else if (breakEven <= 0) {
+    suggested = 0
+    reason = `Harga sekarang sudah rugi/impas, jangan ikut ${label} dulu. Naikkan harga normal terlebih dahulu.`
+  } else if (!ok) {
+    reason = `Margin tipis: diskon di atas ${safe}% membuat laba di bawah ${minMarginPct}% modal. ${label} biasanya butuh ≥${lo}%, jadi lebih baik naikkan harga normal (harga coret) dulu atau pilih promo yang lebih kecil.`
+  } else {
+    reason =
+      suggested === ideal
+        ? `Diskon ${suggested}% sudah cukup menarik untuk ${label} dan laba masih di atas ${minMarginPct}% modal. Masih aman sampai ${safe}%, di atas ${breakEven}% mulai rugi.`
+        : `Diskon ${suggested}% adalah yang terbesar sebelum laba turun di bawah ${minMarginPct}% modal (batas aman ${safe}%, impas di ${breakEven}%).`
+  }
+  return { safe, breakEven, suggested: Math.max(0, suggested), ok, reason }
 }

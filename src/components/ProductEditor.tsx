@@ -392,11 +392,13 @@ export function PercentInput({
   value,
   onChange,
   placeholder,
+  max = 99,
 }: {
   label: string
   value: number | null
   onChange: (n: number | null) => void
   placeholder?: string
+  max?: number
 }) {
   return (
     <label className="block">
@@ -408,7 +410,7 @@ export function PercentInput({
           placeholder={placeholder}
           onChange={(e) => {
             const t = e.target.value.replace(',', '.').replace(/[^\d.]/g, '')
-            onChange(t === '' ? null : Math.min(99, Number(t)))
+            onChange(t === '' ? null : Math.min(max, Number(t)))
           }}
           className="h-12 w-full rounded-2xl border border-ink-200 bg-white pr-9 pl-4 text-right font-semibold tabular-nums outline-none placeholder:font-normal placeholder:text-ink-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-100"
         />
