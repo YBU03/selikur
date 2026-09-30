@@ -1,0 +1,120 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans Variable', ui-sans-serif, system-ui, sans-serif;
+
+  --color-brand-50: #eef8f3;
+  --color-brand-100: #d5eee2;
+  --color-brand-200: #abdcc6;
+  --color-brand-300: #74c2a1;
+  --color-brand-400: #3ea47d;
+  --color-brand-500: #178a66;
+  --color-brand-600: #0e7659;
+  --color-brand-700: #0b5f49;
+  --color-brand-800: #0a4c3c;
+  --color-brand-900: #083e32;
+  --color-brand-950: #03231c;
+
+  --color-leaf-400: #4cc47f;
+  --color-leaf-500: #2fb36b;
+  --color-leaf-600: #22945a;
+
+  --color-sun-50: #fff6e9;
+  --color-sun-100: #ffe8c6;
+  --color-sun-300: #ffbd5c;
+  --color-sun-400: #ffa62b;
+  --color-sun-500: #f7931e;
+  --color-sun-600: #ec7814;
+  --color-sun-700: #c45c0e;
+
+  --color-ink-50: #f6f7f5;
+  --color-ink-100: #eceeeb;
+  --color-ink-200: #dde1dc;
+  --color-ink-300: #c3c9c3;
+  --color-ink-400: #97a09a;
+  --color-ink-500: #6c766f;
+  --color-ink-600: #505a54;
+  --color-ink-700: #3a433e;
+  --color-ink-800: #252d29;
+  --color-ink-900: #121a16;
+
+  --radius-xl: 0.875rem;
+  --radius-2xl: 1.25rem;
+  --radius-3xl: 1.75rem;
+
+  --shadow-soft: 0 1px 2px rgb(8 62 50 / 0.04), 0 4px 16px -4px rgb(8 62 50 / 0.08);
+  --shadow-lift: 0 10px 30px -10px rgb(8 62 50 / 0.35);
+  --shadow-sun: 0 12px 28px -10px rgb(236 120 20 / 0.55);
+}
+
+:root {
+  color-scheme: light;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html,
+body {
+  background: var(--color-ink-50);
+  color: var(--color-ink-900);
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-feature-settings: 'ss01', 'cv11';
+  overscroll-behavior-y: none;
+}
+
+input,
+select,
+textarea {
+  font-size: 16px; /* cegah zoom iOS */
+}
+
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.pb-nav {
+  padding-bottom: calc(6.5rem + var(--safe-bottom));
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-sheet {
+  animation: sheet-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.animate-fade {
+  animation: fade-in 0.18s ease-out;
+}
+
+@media print {
+  nav,
+  .no-print {
+    display: none !important;
+  }
+}

@@ -1,0 +1,151 @@
+'use client'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { supabase } from './supabase'
+import type { Category, Product, Profile, Schedule, ShoppingItem, ShoppingList, Supplier, PriceHistory } from './types'
+import { HISTORY_WEEKS, toBuckets } from './forecast'
+
+function check<T>(res: { data: T | null; error: unknown }): T {
+  if (res.error) throw res.error
+  return res.data as T
+}
+
+export const qk = {
+  profile: ['profile'] as const,
+  categories: ['categories'] as const,
+  suppliers: ['suppliers'] as const,
+  catalog: ['catalog'] as const,
+  buckets: ['sales-buckets'] as const,
+  lists: ['lists'] as const,
+  list: (id: string) => ['list', id] as const,
+  schedules: ['schedules'] as const,
+}
+
+export function useProfile() {
+  return useQuery({
+    queryKey: qk.profile,
+    queryFn: async () => {
+      const { data: s } = await supabase.auth.getSession()
+      const uid = s.session?.user.id
+      const res = await supabase.from('profiles').select('*').eq('id', uid!).maybeSingle()
+      if (res.error) throw res.error
+      if (res.data) return res.data as Profile
+      const ins = await supabase.from('profiles').insert({ id: uid }).select().single()
+      return check(ins) as Profile
+    },
+  })
+}
+
+export const defaultProfile: Profile = {
+  id: '',
+  store_name: 'Toko Saya',
+  coverage_weeks: 2,
+  forecast_method: 'sma',
+  seasonal_factor: 1,
+  seasonal_label: null,
+  default_budget: null,
+}
+
+export function useCategories() {
+  return useQuery({
+    queryKey: qk.categories,
+    queryFn: async () => check(await supabase.from('categories').select('*').order('name')) as Category[],
+  })
+}
+
+export function useSuppliers() {
+  return useQuery({
+    queryKey: qk.suppliers,
+    queryFn: async () => check(await supabase.from('suppliers').select('*').order('name')) as Supplier[],
+  })
+}
+
+export function useCatalog() {
+  return useQuery({
+    queryKey: qk.catalog,
+    queryFn: async () => {
+      const rows = check(
+        await supabase
+          .from('products')
+          .select('*, variants(*)')
+          .order('created_at', { ascending: false })
+          .order('created_at', { referencedTable: 'variants', ascending: true }),
+      ) as Product[]
+      return rows
+    },
+  })
+}
+
+export function useSalesBuckets() {
+  return useQuery({
+    queryKey: qk.buckets,
+    queryFn: async () => {
+      const rows = check(await supabase.rpc('sales_buckets', { p_weeks: HISTORY_WEEKS })) as {
+        variant_id: string
+        bucket: number
+        qty: number
+      }[]
+      return rows
+    },
+    select: (rows) => toBuckets(rows),
+  })
+}
+
+export type ListWithCount = ShoppingList & { shopping_items: { count: number }[] }
+
+export function useLists() {
+  return useQuery({
+    queryKey: qk.lists,
+    queryFn: async () =>
+      check(
+        await supabase.from('shopping_lists').select('*, shopping_items(count)').order('created_at', { ascending: false }),
+      ) as ListWithCount[],
+  })
+}
+
+export function useList(id: string | null) {
+  return useQuery({
+    queryKey: qk.list(id ?? ''),
+    enabled: !!id,
+    queryFn: async () => {
+      const [l, items] = await Promise.all([
+        supabase.from('shopping_lists').select('*').eq('id', id!).single(),
+        supabase.from('shopping_items').select('*').eq('list_id', id!).order('sort_order').order('created_at'),
+      ])
+      return { list: check(l) as ShoppingList, items: check(items) as ShoppingItem[] }
+    },
+  })
+}
+
+export function useSchedules() {
+  return useQuery({
+    queryKey: qk.schedules,
+    queryFn: async () => check(await supabase.from('schedules').select('*').order('scheduled_on')) as Schedule[],
+  })
+}
+
+export function usePriceHistory(variantIds: string[]) {
+  return useQuery({
+    queryKey: ['price-history', ...variantIds],
+    enabled: variantIds.length > 0,
+    queryFn: async () =>
+      check(
+        await supabase.from('price_history').select('*').in('variant_id', variantIds).order('recorded_on', { ascending: false }).limit(100),
+      ) as PriceHistory[],
+  })
+}
+
+export function useInvalidate() {
+  const qc = useQueryClient()
+  return (...keys: (readonly unknown[])[]) => Promise.all(keys.map((k) => qc.invalidateQueries({ queryKey: k })))
+}
+
+/** Indeks cepat varian -> {produk, varian}. */
+export function indexVariants(products: Product[] | undefined) {
+  const map = new Map<string, { product: Product; variant: Product['variants'][number] }>()
+  for (const p of products ?? []) for (const v of p.variants) map.set(v.id, { product: p, variant: v })
+  return map
+}
+
+export function variantLabel(p: { name: string }, v: { name: string }) {
+  return v.name && v.name !== 'Standar' ? `${p.name} — ${v.name}` : p.name
+}
