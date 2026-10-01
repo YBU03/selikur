@@ -104,7 +104,7 @@ export function PageHeader({
 }) {
   const router = useRouter()
   return (
-    <header className="sticky top-0 z-30 -mx-4 mb-4 flex items-center gap-2 bg-ink-50/95 px-4 pt-[max(env(safe-area-inset-top),0.75rem)] pb-3 lg:-mx-8 lg:mb-6 lg:px-8 lg:pt-6">
+    <header className="sticky top-0 z-30 -mx-4 mb-4 flex items-center gap-2 bg-ink-50 px-4 pt-[max(env(safe-area-inset-top),0.75rem)] pb-3 lg:-mx-8 lg:mb-6 lg:px-8 lg:pt-6">
       {back && (
         <IconButton
           aria-label="Kembali"
