@@ -1,8 +1,9 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { Wand2, Trash2 } from 'lucide-react'
+import { Wand2, Trash2, RotateCw } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { compressImage, uploadPhoto, removePhotos } from '@/lib/photos'
+import { compressImage, rotateImage, uploadPhoto, removePhotos } from '@/lib/photos'
+import { photoUrl } from '@/lib/supabase'
 import { qk, useInvalidate, usePricing } from '@/lib/queries'
 import { UNITS, type Product, type Variant } from '@/lib/types'
 import { priceFromMarkup, pricingCfg, type PricingCfg } from '@/lib/pricing'
@@ -226,9 +227,14 @@ export default function VariantSheet({
               hidden
               onChange={async (e) => {
                 const f = e.target.files?.[0]
+                e.target.value = ''
                 if (!f) return
-                const b = await compressImage(f)
-                setPhoto({ blob: b, url: URL.createObjectURL(b) })
+                try {
+                  const b = await compressImage(f)
+                  setPhoto({ blob: b, url: URL.createObjectURL(b) })
+                } catch (err) {
+                  toast(errMsg(err), 'error')
+                }
               }}
             />
           </label>
@@ -237,9 +243,25 @@ export default function VariantSheet({
           </div>
         </div>
         {shown && (
-          <button className="text-xs font-semibold text-red-600" onClick={() => setPhoto({ url: null })}>
-            Hapus foto varian
-          </button>
+          <div className="flex gap-4">
+            <button
+              type="button"
+              className="flex items-center gap-1 text-xs font-semibold text-brand-700"
+              onClick={async () => {
+                try {
+                  const b = await rotateImage(photoUrl(shown)!, 90)
+                  setPhoto({ blob: b, url: URL.createObjectURL(b) })
+                } catch (err) {
+                  toast(errMsg(err), 'error')
+                }
+              }}
+            >
+              <RotateCw className="size-3.5" /> Putar 90°
+            </button>
+            <button type="button" className="text-xs font-semibold text-red-600" onClick={() => setPhoto({ url: null })}>
+              Hapus foto varian
+            </button>
+          </div>
         )}
         <VariantFields v={v} set={(p) => setV({ ...v, ...p })} productName={product.name} hasHistory cfg={cfg} />
         {product.variants.length > 1 && (

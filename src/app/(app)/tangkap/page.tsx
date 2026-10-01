@@ -2,14 +2,14 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useQueryClient } from '@tanstack/react-query'
-import { Camera, Images, Crop, RotateCcw, Check, MapPin, ChevronRight } from 'lucide-react'
-import { compressImage } from '@/lib/photos'
+import { Camera, Images, Crop, RotateCw, Check, MapPin, ChevronRight } from 'lucide-react'
+import { compressImage, rotateImage } from '@/lib/photos'
 import { enqueue, saveBlob } from '@/lib/outbox'
 import { qk, useCategories } from '@/lib/queries'
 import type { Product } from '@/lib/types'
 import { Button, Input, MoneyInput, PageHeader, Select, cx } from '@/components/ui'
 import CropModal from '@/components/CropModal'
-import { useToast } from '@/components/Toast'
+import { useToast, errMsg } from '@/components/Toast'
 
 const LOC_KEY = 'selikur-last-location'
 
@@ -39,10 +39,25 @@ export default function TangkapPage() {
 
   async function onFile(f: File | undefined) {
     if (!f) return
-    const c = await compressImage(f)
-    setBlob(c)
-    setPreview(URL.createObjectURL(c))
-    setTimeout(() => nameRef.current?.focus(), 150)
+    try {
+      const c = await compressImage(f)
+      setBlob(c)
+      setPreview(URL.createObjectURL(c))
+      setTimeout(() => nameRef.current?.focus(), 150)
+    } catch (e) {
+      toast(errMsg(e), 'error')
+    }
+  }
+
+  async function rotate() {
+    if (!preview) return
+    try {
+      const b = await rotateImage(preview, 90)
+      setBlob(b)
+      setPreview(URL.createObjectURL(b))
+    } catch (e) {
+      toast(errMsg(e), 'error')
+    }
   }
 
   function reset() {
@@ -151,13 +166,16 @@ export default function TangkapPage() {
       {preview ? (
         <div className="relative overflow-hidden rounded-[2rem] bg-ink-100 shadow-soft">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={preview} alt="" className="aspect-square w-full object-cover" />
+          <img src={preview} alt="" className="max-h-[60vh] w-full object-contain" />
           <div className="absolute right-3 bottom-3 flex gap-2">
-            <button onClick={() => setCropping(true)} className="flex items-center gap-1.5 rounded-full bg-white/90 px-3.5 py-2 text-sm font-semibold shadow backdrop-blur">
+            <button onClick={rotate} aria-label="Putar 90°" className="flex items-center gap-1.5 rounded-full bg-white/90 px-3.5 py-2 text-sm font-semibold shadow">
+              <RotateCw className="size-4" /> Putar
+            </button>
+            <button onClick={() => setCropping(true)} className="flex items-center gap-1.5 rounded-full bg-white/90 px-3.5 py-2 text-sm font-semibold shadow">
               <Crop className="size-4" /> Crop
             </button>
-            <button onClick={() => camRef.current?.click()} className="flex items-center gap-1.5 rounded-full bg-white/90 px-3.5 py-2 text-sm font-semibold shadow backdrop-blur">
-              <RotateCcw className="size-4" /> Ulang
+            <button onClick={() => camRef.current?.click()} className="flex items-center gap-1.5 rounded-full bg-white/90 px-3.5 py-2 text-sm font-semibold shadow">
+              <Camera className="size-4" /> Ulang
             </button>
           </div>
         </div>

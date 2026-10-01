@@ -1,7 +1,8 @@
 'use client'
 import { useRef, useState } from 'react'
-import { Camera, ImagePlus, Crop, X, Star } from 'lucide-react'
-import { compressImage } from '@/lib/photos'
+import { Camera, ImagePlus, Crop, X, Star, RotateCw } from 'lucide-react'
+import { compressImage, rotateImage } from '@/lib/photos'
+import { useToast, errMsg } from './Toast'
 import { photoUrl } from '@/lib/supabase'
 import CropModal from './CropModal'
 
@@ -21,18 +22,38 @@ export default function PhotoStrip({ items, onChange, max = 5 }: { items: PhotoI
   const cam = useRef<HTMLInputElement>(null)
   const [crop, setCrop] = useState<PhotoItem | null>(null)
   const [busy, setBusy] = useState(false)
+  const [turning, setTurning] = useState<string | null>(null)
+  const toast = useToast()
 
   async function add(files: FileList | null) {
     if (!files?.length) return
     setBusy(true)
     const room = max - items.length
     const next: PhotoItem[] = []
-    for (const f of Array.from(files).slice(0, room)) {
-      const b = await compressImage(f)
-      next.push({ key: crypto.randomUUID(), blob: b, url: URL.createObjectURL(b) })
+    try {
+      for (const f of Array.from(files).slice(0, room)) {
+        const b = await compressImage(f)
+        next.push({ key: crypto.randomUUID(), blob: b, url: URL.createObjectURL(b) })
+      }
+    } catch (e) {
+      toast(errMsg(e), 'error')
     }
-    onChange([...items, ...next])
+    if (next.length) onChange([...items, ...next])
     setBusy(false)
+  }
+
+  /** Putar 90° searah jarum jam; foto lama diganti versi baru (diunggah ulang saat disimpan). */
+  async function rotate(it: PhotoItem) {
+    setTurning(it.key)
+    try {
+      const b = await rotateImage(it.url, 90)
+      const item = { key: crypto.randomUUID(), blob: b, url: URL.createObjectURL(b) }
+      onChange(items.map((x) => (x.key === it.key ? item : x)))
+    } catch (e) {
+      toast(errMsg(e), 'error')
+    } finally {
+      setTurning(null)
+    }
   }
 
   return (
@@ -44,6 +65,15 @@ export default function PhotoStrip({ items, onChange, max = 5 }: { items: PhotoI
           <div key={it.key} className="relative size-28 shrink-0 overflow-hidden rounded-2xl bg-ink-100 ring-1 ring-ink-100">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={it.url} alt="" className="size-full object-cover" />
+            <button
+              type="button"
+              onClick={() => rotate(it)}
+              disabled={turning === it.key}
+              className="absolute top-1.5 right-1.5 flex size-7 items-center justify-center rounded-full bg-white/90 shadow disabled:opacity-60"
+              aria-label="Putar 90°"
+            >
+              <RotateCw className={turning === it.key ? 'size-3.5 animate-spin' : 'size-3.5'} />
+            </button>
             {i === 0 && (
               <span className="absolute top-1.5 left-1.5 flex items-center gap-0.5 rounded-full bg-brand-700/90 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                 <Star className="size-2.5" /> Utama
@@ -80,7 +110,7 @@ export default function PhotoStrip({ items, onChange, max = 5 }: { items: PhotoI
           </>
         )}
       </div>
-      <p className="mt-1.5 text-xs text-ink-400">{items.length}/{max} foto · dikompres otomatis ±500 KB</p>
+      <p className="mt-1.5 text-xs text-ink-400">{items.length}/{max} foto · ketuk ⟳ untuk memutar · dikompres otomatis ±500 KB</p>
       {crop && (
         <CropModal
           src={crop.url}
