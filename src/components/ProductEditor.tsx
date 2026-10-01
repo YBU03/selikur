@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2, ChevronRight, MapPin, History, MessageCircle } from 'lucide-react'
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
@@ -48,6 +48,10 @@ export default function ProductEditor({ product }: { product: Product | null }) 
   const [catSheet, setCatSheet] = useState(false)
   const [supSheet, setSupSheet] = useState(false)
   const [confirmDel, setConfirmDel] = useState(false)
+  const [photoSaving, setPhotoSaving] = useState(false)
+  const photoQueue = useRef<Promise<void>>(Promise.resolve())
+  const photoBusy = useRef(0)
+  const savedPhotos = useRef<string[]>(product?.photos ?? [])
 
   useEffect(() => {
     if (!product) return
@@ -62,7 +66,9 @@ export default function ProductEditor({ product }: { product: Product | null }) 
       platform_fee_pct: product.platform_fee_pct ?? null,
       affiliate_pct: product.affiliate_pct ?? null,
     })
-    setPhotos(toPhotoItems(product.photos ?? []))
+    savedPhotos.current = product.photos ?? []
+    // Jangan timpa foto yang sedang disimpan otomatis.
+    if (!photoBusy.current) setPhotos(toPhotoItems(product.photos ?? []))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product?.id, product?.photos?.join(',')])
 
@@ -89,13 +95,43 @@ export default function ProductEditor({ product }: { product: Product | null }) 
   }, [forecasts, prof.forecast_method])
   const hasSales = series.some((s) => s.aktual > 0)
 
+  /** Produk yang sudah ada: foto langsung disimpan setiap kali ditambah/diputar/di-crop/dihapus/diurutkan. */
+  function changePhotos(next: PhotoItem[]) {
+    setPhotos(next)
+    if (!product || product._pending) return
+    photoBusy.current++
+    setPhotoSaving(true)
+    photoQueue.current = photoQueue.current.then(() => persistPhotos(product.id, next)).finally(() => {
+      if (--photoBusy.current === 0) setPhotoSaving(false)
+    })
+  }
+
+  async function persistPhotos(productId: string, next: PhotoItem[]) {
+    try {
+      const done = await Promise.all(next.map(async (p) => (p.path ? p : { ...p, path: await uploadPhoto(p.blob!) })))
+      const paths = done.map((p) => p.path!)
+      const { error } = await supabase.from('products').update({ photos: paths }).eq('id', productId)
+      if (error) throw error
+      // tandai foto yang sudah terunggah supaya tidak diunggah dua kali
+      setPhotos((cur) => cur.map((c) => done.find((d) => d.key === c.key) ?? c))
+      const removed = savedPhotos.current.filter((x) => !paths.includes(x))
+      savedPhotos.current = paths
+      if (removed.length) await removePhotos(removed).catch(() => {})
+      await invalidate(qk.catalog)
+      toast('Foto tersimpan')
+    } catch (e) {
+      toast(`Foto gagal disimpan: ${errMsg(e)}`, 'error')
+    }
+  }
+
   async function save() {
     if (!form.name.trim()) return toast('Nama produk wajib diisi', 'error')
     setSaving(true)
     try {
+      // Produk lama: foto sudah tersimpan otomatis, cukup tunggu antreannya selesai.
+      await photoQueue.current
       const paths: string[] = []
-      for (const p of photos) paths.push(p.path ?? (await uploadPhoto(p.blob!)))
-      const removed = (product?.photos ?? []).filter((p) => !paths.includes(p))
+      if (!product) for (const p of photos) paths.push(p.path ?? (await uploadPhoto(p.blob!)))
       const row = {
         name: form.name.trim(),
         category_id: form.category_id || null,
@@ -106,12 +142,11 @@ export default function ProductEditor({ product }: { product: Product | null }) 
         attributes: form.attributes,
         platform_fee_pct: form.platform_fee_pct,
         affiliate_pct: form.affiliate_pct,
-        photos: paths,
+        ...(product ? {} : { photos: paths }),
       }
       if (product) {
         const { error } = await supabase.from('products').update(row).eq('id', product.id)
         if (error) throw error
-        if (removed.length) await removePhotos(removed)
         await invalidate(qk.catalog)
         toast('Produk tersimpan')
       } else {
@@ -172,7 +207,14 @@ export default function ProductEditor({ product }: { product: Product | null }) 
           {photos.length ? photos.map((p) => <Thumb key={p.key} path={p.url} size={112} />) : <Thumb path={null} size={112} />}
         </div>
       ) : (
-        <PhotoStrip items={photos} onChange={setPhotos} />
+        <>
+          <PhotoStrip items={photos} onChange={changePhotos} />
+          {product && !product._pending && (
+            <p className={cx('mt-1 text-xs font-medium', photoSaving ? 'text-sun-700' : 'text-leaf-600')}>
+              {photoSaving ? 'Menyimpan foto…' : 'Foto tersimpan otomatis'}
+            </p>
+          )}
+        </>
       )}
 
       <div className="mt-5 space-y-3.5">

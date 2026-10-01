@@ -109,7 +109,15 @@ async function run(op: OutboxOp) {
       const photos: string[] = []
       if (op.photoKey) {
         const blob = await loadBlob(op.photoKey)
-        if (blob) photos.push(await uploadPhoto(blob))
+        if (blob) {
+          try {
+            photos.push(await uploadPhoto(blob))
+          } catch (err) {
+            // Koneksi putus → coba lagi nanti. Error lain → simpan produk tanpa foto daripada hilang semuanya.
+            if (isNetworkError(err)) throw err
+            console.error('Foto kandidat gagal diunggah', err)
+          }
+        }
       }
       const { error } = await supabase.from('products').insert({
         id: op.productId,
